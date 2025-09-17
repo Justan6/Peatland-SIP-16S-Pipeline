@@ -1,0 +1,1874 @@
+Run DADA2 V9.2 on 16S dataset with pseudo option 
+
+Will process reads from the following folder:
+../../Data/16S/noPrimers
+Starting R script 
+
+Failed to query server: Unit systemd-timedated.service is masked.
+── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──
+✔ dplyr     1.1.4     ✔ readr     2.1.5
+✔ forcats   1.0.0     ✔ stringr   1.5.1
+✔ ggplot2   3.5.2     ✔ tibble    3.2.1
+✔ lubridate 1.9.4     ✔ tidyr     1.3.1
+✔ purrr     1.0.4     
+── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+✖ dplyr::filter() masks stats::filter()
+✖ dplyr::lag()    masks stats::lag()
+ℹ Use the conflicted package (<http://conflicted.r-lib.org/>) to force all conflicts to become errors
+Warning message:
+In system("timedatectl", intern = TRUE) :
+  running command 'timedatectl' had status 1
+
+Attaching package: ‘magrittr’
+
+The following object is masked from ‘package:purrr’:
+
+    set_names
+
+The following object is masked from ‘package:tidyr’:
+
+    extract
+
+
+Attaching package: ‘seqinr’
+
+The following object is masked from ‘package:dplyr’:
+
+    count
+
+Loading required package: BiocGenerics
+
+Attaching package: ‘BiocGenerics’
+
+The following objects are masked from ‘package:lubridate’:
+
+    intersect, setdiff, union
+
+The following objects are masked from ‘package:dplyr’:
+
+    combine, intersect, setdiff, union
+
+The following objects are masked from ‘package:stats’:
+
+    IQR, mad, sd, var, xtabs
+
+The following objects are masked from ‘package:base’:
+
+    anyDuplicated, aperm, append, as.data.frame, basename, cbind,
+    colnames, dirname, do.call, duplicated, eval, evalq, Filter, Find,
+    get, grep, grepl, intersect, is.unsorted, lapply, Map, mapply,
+    match, mget, order, paste, pmax, pmax.int, pmin, pmin.int,
+    Position, rank, rbind, Reduce, rownames, sapply, setdiff, sort,
+    table, tapply, union, unique, unsplit, which.max, which.min
+
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: ‘S4Vectors’
+
+The following objects are masked from ‘package:lubridate’:
+
+    second, second<-
+
+The following objects are masked from ‘package:dplyr’:
+
+    first, rename
+
+The following object is masked from ‘package:tidyr’:
+
+    expand
+
+The following object is masked from ‘package:utils’:
+
+    findMatches
+
+The following objects are masked from ‘package:base’:
+
+    expand.grid, I, unname
+
+Loading required package: IRanges
+
+Attaching package: ‘IRanges’
+
+The following object is masked from ‘package:lubridate’:
+
+    %within%
+
+The following objects are masked from ‘package:dplyr’:
+
+    collapse, desc, slice
+
+The following object is masked from ‘package:purrr’:
+
+    reduce
+
+Loading required package: XVector
+
+Attaching package: ‘XVector’
+
+The following object is masked from ‘package:purrr’:
+
+    compact
+
+Loading required package: GenomeInfoDb
+
+Attaching package: ‘Biostrings’
+
+The following object is masked from ‘package:seqinr’:
+
+    translate
+
+The following object is masked from ‘package:base’:
+
+    strsplit
+
+Loading required package: Rcpp
+Loading required package: BiocParallel
+Loading required package: Rsamtools
+Loading required package: GenomicRanges
+
+Attaching package: ‘GenomicRanges’
+
+The following object is masked from ‘package:magrittr’:
+
+    subtract
+
+Loading required package: GenomicAlignments
+Loading required package: SummarizedExperiment
+Loading required package: MatrixGenerics
+Loading required package: matrixStats
+
+Attaching package: ‘matrixStats’
+
+The following object is masked from ‘package:seqinr’:
+
+    count
+
+The following object is masked from ‘package:dplyr’:
+
+    count
+
+
+Attaching package: ‘MatrixGenerics’
+
+The following objects are masked from ‘package:matrixStats’:
+
+    colAlls, colAnyNAs, colAnys, colAvgsPerRowSet, colCollapse,
+    colCounts, colCummaxs, colCummins, colCumprods, colCumsums,
+    colDiffs, colIQRDiffs, colIQRs, colLogSumExps, colMadDiffs,
+    colMads, colMaxs, colMeans2, colMedians, colMins, colOrderStats,
+    colProds, colQuantiles, colRanges, colRanks, colSdDiffs, colSds,
+    colSums2, colTabulates, colVarDiffs, colVars, colWeightedMads,
+    colWeightedMeans, colWeightedMedians, colWeightedSds,
+    colWeightedVars, rowAlls, rowAnyNAs, rowAnys, rowAvgsPerColSet,
+    rowCollapse, rowCounts, rowCummaxs, rowCummins, rowCumprods,
+    rowCumsums, rowDiffs, rowIQRDiffs, rowIQRs, rowLogSumExps,
+    rowMadDiffs, rowMads, rowMaxs, rowMeans2, rowMedians, rowMins,
+    rowOrderStats, rowProds, rowQuantiles, rowRanges, rowRanks,
+    rowSdDiffs, rowSds, rowSums2, rowTabulates, rowVarDiffs, rowVars,
+    rowWeightedMads, rowWeightedMeans, rowWeightedMedians,
+    rowWeightedSds, rowWeightedVars
+
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+
+Attaching package: ‘Biobase’
+
+The following object is masked from ‘package:MatrixGenerics’:
+
+    rowMedians
+
+The following objects are masked from ‘package:matrixStats’:
+
+    anyMissing, rowMedians
+
+
+Attaching package: ‘GenomicAlignments’
+
+The following object is masked from ‘package:dplyr’:
+
+    last
+
+
+Attaching package: ‘ShortRead’
+
+The following object is masked from ‘package:magrittr’:
+
+    functions
+
+The following object is masked from ‘package:dplyr’:
+
+    id
+
+The following object is masked from ‘package:purrr’:
+
+    compose
+
+The following object is masked from ‘package:tibble’:
+
+    view
+
+Loading required package: data.table
+
+Attaching package: ‘data.table’
+
+The following object is masked from ‘package:ShortRead’:
+
+    tables
+
+The following objects are masked from ‘package:GenomicAlignments’:
+
+    first, last, second
+
+The following object is masked from ‘package:SummarizedExperiment’:
+
+    shift
+
+The following object is masked from ‘package:GenomicRanges’:
+
+    shift
+
+The following object is masked from ‘package:IRanges’:
+
+    shift
+
+The following objects are masked from ‘package:S4Vectors’:
+
+    first, second
+
+The following objects are masked from ‘package:lubridate’:
+
+    hour, isoweek, mday, minute, month, quarter, second, wday, week,
+    yday, year
+
+The following objects are masked from ‘package:dplyr’:
+
+    between, first, last
+
+The following object is masked from ‘package:purrr’:
+
+    transpose
+
+Loading required package: rlang
+
+Attaching package: ‘rlang’
+
+The following object is masked from ‘package:data.table’:
+
+    :=
+
+The following object is masked from ‘package:Biobase’:
+
+    exprs
+
+The following object is masked from ‘package:magrittr’:
+
+    set_names
+
+The following objects are masked from ‘package:purrr’:
+
+    %@%, flatten, flatten_chr, flatten_dbl, flatten_int, flatten_lgl,
+    flatten_raw, invoke, splice
+
+
+Attaching package: ‘microseq’
+
+The following objects are masked from ‘package:ShortRead’:
+
+    readFasta, readFastq, reverseComplement, writeFasta, writeFastq
+
+The following objects are masked from ‘package:Biostrings’:
+
+    reverseComplement, translate
+
+The following object is masked from ‘package:seqinr’:
+
+    translate
+
+The following object is masked from ‘package:base’:
+
+    gregexpr
+
+Pooling type, data path and db path supplied
+pooling=pseudo
+data_path=../
+db_path=~/proj/Resources/
+mock_id=
+Using SILVA file: silva_nr99_v138.2_toSpecies_trainset.fa.gz
+Using GTDB file: GTDB_bac120_arc53_ssu_r214_fullTaxo.fa.gz
+Using mock community file: ZymoBIOMICS.STD.refseq.v2.ssrRNA_16S_515F-806R.pcr.fasta
+Assuming amplicon length: 253
+
+Filter and trim raw sequences:
+filter_output <- filterAndTrim(
+  fastq1s,
+  filt1s,
+  fastq2s,
+  filt2s,
+  #truncLen = truncate, 
+  maxN = 0,
+  maxEE = c(2, 2),
+  truncQ = 2,
+  rm.phix = TRUE,
+  compress = TRUE,
+  multithread = TRUE
+)
+
+The filter removed all reads: ..//filtered/AD098-J1Fract3_S98_R1_filt.fastq.gz and ..//filtered/AD098-J1Fract3_S98_R2_filt.fastq.gz not written.
+Some input samples had no reads pass the filter.
+                                                             sample_name
+AD001-E1Fract1_S1_L001_R1_001_noPrimers.fastq.gz       AD001-E1Fract1_S1
+AD002-E1Fract2_S2_L001_R1_001_noPrimers.fastq.gz       AD002-E1Fract2_S2
+AD003-E1Fract3_S3_L001_R1_001_noPrimers.fastq.gz       AD003-E1Fract3_S3
+AD004-E1Fract4_S4_L001_R1_001_noPrimers.fastq.gz       AD004-E1Fract4_S4
+AD005-E1Fract5_S5_L001_R1_001_noPrimers.fastq.gz       AD005-E1Fract5_S5
+AD006-E1Fract6_S6_L001_R1_001_noPrimers.fastq.gz       AD006-E1Fract6_S6
+AD007-E1Fract7_S7_L001_R1_001_noPrimers.fastq.gz       AD007-E1Fract7_S7
+AD008-E1Fract8_S8_L001_R1_001_noPrimers.fastq.gz       AD008-E1Fract8_S8
+AD009-E1Fract9_S9_L001_R1_001_noPrimers.fastq.gz       AD009-E1Fract9_S9
+AD010-E1Fract10_S10_L001_R1_001_noPrimers.fastq.gz   AD010-E1Fract10_S10
+AD011-E1Fract11_S11_L001_R1_001_noPrimers.fastq.gz   AD011-E1Fract11_S11
+AD012-E1Fract12_S12_L001_R1_001_noPrimers.fastq.gz   AD012-E1Fract12_S12
+AD013-E2Fract1_S13_L001_R1_001_noPrimers.fastq.gz     AD013-E2Fract1_S13
+AD014-E2Fract2_S14_L001_R1_001_noPrimers.fastq.gz     AD014-E2Fract2_S14
+AD015-E2Fract3_S15_L001_R1_001_noPrimers.fastq.gz     AD015-E2Fract3_S15
+AD016-E2Fract4_S16_L001_R1_001_noPrimers.fastq.gz     AD016-E2Fract4_S16
+AD017-E2Fract5_S17_L001_R1_001_noPrimers.fastq.gz     AD017-E2Fract5_S17
+AD018-E2Fract6_S18_L001_R1_001_noPrimers.fastq.gz     AD018-E2Fract6_S18
+AD019-E2Fract7_S19_L001_R1_001_noPrimers.fastq.gz     AD019-E2Fract7_S19
+AD020-E2Fract8_S20_L001_R1_001_noPrimers.fastq.gz     AD020-E2Fract8_S20
+AD021-E2Fract9_S21_L001_R1_001_noPrimers.fastq.gz     AD021-E2Fract9_S21
+AD022-E2Fract10_S22_L001_R1_001_noPrimers.fastq.gz   AD022-E2Fract10_S22
+AD023-E2Fract11_S23_L001_R1_001_noPrimers.fastq.gz   AD023-E2Fract11_S23
+AD024-E2Fract12_S24_L001_R1_001_noPrimers.fastq.gz   AD024-E2Fract12_S24
+AD025-E3Fract1_S25_L001_R1_001_noPrimers.fastq.gz     AD025-E3Fract1_S25
+AD026-E3Fract2_S26_L001_R1_001_noPrimers.fastq.gz     AD026-E3Fract2_S26
+AD027-E3Fract3_S27_L001_R1_001_noPrimers.fastq.gz     AD027-E3Fract3_S27
+AD028-E3Fract4_S28_L001_R1_001_noPrimers.fastq.gz     AD028-E3Fract4_S28
+AD029-E3Fract5_S29_L001_R1_001_noPrimers.fastq.gz     AD029-E3Fract5_S29
+AD030-E3Fract6_S30_L001_R1_001_noPrimers.fastq.gz     AD030-E3Fract6_S30
+AD031-E3Fract7_S31_L001_R1_001_noPrimers.fastq.gz     AD031-E3Fract7_S31
+AD032-E3Fract8_S32_L001_R1_001_noPrimers.fastq.gz     AD032-E3Fract8_S32
+AD033-E3Fract9_S33_L001_R1_001_noPrimers.fastq.gz     AD033-E3Fract9_S33
+AD034-E3Fract10_S34_L001_R1_001_noPrimers.fastq.gz   AD034-E3Fract10_S34
+AD035-E3Fract11_S35_L001_R1_001_noPrimers.fastq.gz   AD035-E3Fract11_S35
+AD036-E3Fract12_S36_L001_R1_001_noPrimers.fastq.gz   AD036-E3Fract12_S36
+AD037-E4Fract2_S37_L001_R1_001_noPrimers.fastq.gz     AD037-E4Fract2_S37
+AD038-E4Fract3_S38_L001_R1_001_noPrimers.fastq.gz     AD038-E4Fract3_S38
+AD039-E4Fract4_S39_L001_R1_001_noPrimers.fastq.gz     AD039-E4Fract4_S39
+AD040-E4Fract5_S40_L001_R1_001_noPrimers.fastq.gz     AD040-E4Fract5_S40
+AD041-E4Fract6_S41_L001_R1_001_noPrimers.fastq.gz     AD041-E4Fract6_S41
+AD042-E4Fract7_S42_L001_R1_001_noPrimers.fastq.gz     AD042-E4Fract7_S42
+AD043-E4Fract8_S43_L001_R1_001_noPrimers.fastq.gz     AD043-E4Fract8_S43
+AD044-E4Fract9_S44_L001_R1_001_noPrimers.fastq.gz     AD044-E4Fract9_S44
+AD045-E4Fract10_S45_L001_R1_001_noPrimers.fastq.gz   AD045-E4Fract10_S45
+AD046-E4Fract11_S46_L001_R1_001_noPrimers.fastq.gz   AD046-E4Fract11_S46
+AD047-F1Fract2_S47_L001_R1_001_noPrimers.fastq.gz     AD047-F1Fract2_S47
+AD048-F1Fract3_S48_L001_R1_001_noPrimers.fastq.gz     AD048-F1Fract3_S48
+AD049-F1Fract4_S49_L001_R1_001_noPrimers.fastq.gz     AD049-F1Fract4_S49
+AD050-F1Fract5_S50_L001_R1_001_noPrimers.fastq.gz     AD050-F1Fract5_S50
+AD051-F1Fract6_S51_L001_R1_001_noPrimers.fastq.gz     AD051-F1Fract6_S51
+AD052-F1Fract7_S52_L001_R1_001_noPrimers.fastq.gz     AD052-F1Fract7_S52
+AD053-F1Fract8_S53_L001_R1_001_noPrimers.fastq.gz     AD053-F1Fract8_S53
+AD054-F1Fract9_S54_L001_R1_001_noPrimers.fastq.gz     AD054-F1Fract9_S54
+AD055-F1Fract10_S55_L001_R1_001_noPrimers.fastq.gz   AD055-F1Fract10_S55
+AD056-F1Fract11_S56_L001_R1_001_noPrimers.fastq.gz   AD056-F1Fract11_S56
+AD057-I1Fract2_S57_L001_R1_001_noPrimers.fastq.gz     AD057-I1Fract2_S57
+AD058-I1Fract3_S58_L001_R1_001_noPrimers.fastq.gz     AD058-I1Fract3_S58
+AD059-I1Fract4_S59_L001_R1_001_noPrimers.fastq.gz     AD059-I1Fract4_S59
+AD060-I1Fract5_S60_L001_R1_001_noPrimers.fastq.gz     AD060-I1Fract5_S60
+AD061-I1Fract6_S61_L001_R1_001_noPrimers.fastq.gz     AD061-I1Fract6_S61
+AD062-I1Fract7_S62_L001_R1_001_noPrimers.fastq.gz     AD062-I1Fract7_S62
+AD063-I1Fract8_S63_L001_R1_001_noPrimers.fastq.gz     AD063-I1Fract8_S63
+AD064-I1Fract9_S64_L001_R1_001_noPrimers.fastq.gz     AD064-I1Fract9_S64
+AD065-I1Fract10_S65_L001_R1_001_noPrimers.fastq.gz   AD065-I1Fract10_S65
+AD066-I1Fract11_S66_L001_R1_001_noPrimers.fastq.gz   AD066-I1Fract11_S66
+AD067-I2Fract2_S67_L001_R1_001_noPrimers.fastq.gz     AD067-I2Fract2_S67
+AD068-I2Fract3_S68_L001_R1_001_noPrimers.fastq.gz     AD068-I2Fract3_S68
+AD069-I2Fract4_S69_L001_R1_001_noPrimers.fastq.gz     AD069-I2Fract4_S69
+AD070-I2Fract5_S70_L001_R1_001_noPrimers.fastq.gz     AD070-I2Fract5_S70
+AD071-I2Fract6_S71_L001_R1_001_noPrimers.fastq.gz     AD071-I2Fract6_S71
+AD072-I2Fract7_S72_L001_R1_001_noPrimers.fastq.gz     AD072-I2Fract7_S72
+AD073-I2Fract8_S73_L001_R1_001_noPrimers.fastq.gz     AD073-I2Fract8_S73
+AD074-I2Fract9_S74_L001_R1_001_noPrimers.fastq.gz     AD074-I2Fract9_S74
+AD075-I2Fract10_S75_L001_R1_001_noPrimers.fastq.gz   AD075-I2Fract10_S75
+AD076-I2Fract11_S76_L001_R1_001_noPrimers.fastq.gz   AD076-I2Fract11_S76
+AD077-I3Fract2_S77_L001_R1_001_noPrimers.fastq.gz     AD077-I3Fract2_S77
+AD078-I3Fract3_S78_L001_R1_001_noPrimers.fastq.gz     AD078-I3Fract3_S78
+AD079-I3Fract4_S79_L001_R1_001_noPrimers.fastq.gz     AD079-I3Fract4_S79
+AD080-I3Fract5_S80_L001_R1_001_noPrimers.fastq.gz     AD080-I3Fract5_S80
+AD081-I3Fract6_S81_L001_R1_001_noPrimers.fastq.gz     AD081-I3Fract6_S81
+AD082-I3Fract7_S82_L001_R1_001_noPrimers.fastq.gz     AD082-I3Fract7_S82
+AD083-I3Fract8_S83_L001_R1_001_noPrimers.fastq.gz     AD083-I3Fract8_S83
+AD084-I3Fract9_S84_L001_R1_001_noPrimers.fastq.gz     AD084-I3Fract9_S84
+AD085-I3Fract10_S85_L001_R1_001_noPrimers.fastq.gz   AD085-I3Fract10_S85
+AD086-I3Fract11_S86_L001_R1_001_noPrimers.fastq.gz   AD086-I3Fract11_S86
+AD087-I4Fract2_S87_L001_R1_001_noPrimers.fastq.gz     AD087-I4Fract2_S87
+AD088-I4Fract3_S88_L001_R1_001_noPrimers.fastq.gz     AD088-I4Fract3_S88
+AD089-I4Fract4_S89_L001_R1_001_noPrimers.fastq.gz     AD089-I4Fract4_S89
+AD090-I4Fract5_S90_L001_R1_001_noPrimers.fastq.gz     AD090-I4Fract5_S90
+AD091-I4Fract6_S91_L001_R1_001_noPrimers.fastq.gz     AD091-I4Fract6_S91
+AD092-I4Fract7_S92_L001_R1_001_noPrimers.fastq.gz     AD092-I4Fract7_S92
+AD093-I4Fract8_S93_L001_R1_001_noPrimers.fastq.gz     AD093-I4Fract8_S93
+AD094-I4Fract9_S94_L001_R1_001_noPrimers.fastq.gz     AD094-I4Fract9_S94
+AD095-I4Fract10_S95_L001_R1_001_noPrimers.fastq.gz   AD095-I4Fract10_S95
+AD096-I4Fract11_S96_L001_R1_001_noPrimers.fastq.gz   AD096-I4Fract11_S96
+AD097-J1Fract2_S97_L001_R1_001_noPrimers.fastq.gz     AD097-J1Fract2_S97
+AD098-J1Fract3_S98_L001_R1_001_noPrimers.fastq.gz     AD098-J1Fract3_S98
+AD099-J1Fract4_S99_L001_R1_001_noPrimers.fastq.gz     AD099-J1Fract4_S99
+AD100-J1Fract5_S100_L001_R1_001_noPrimers.fastq.gz   AD100-J1Fract5_S100
+AD101-J1Fract6_S101_L001_R1_001_noPrimers.fastq.gz   AD101-J1Fract6_S101
+AD102-J1Fract7_S102_L001_R1_001_noPrimers.fastq.gz   AD102-J1Fract7_S102
+AD103-J1Fract8_S103_L001_R1_001_noPrimers.fastq.gz   AD103-J1Fract8_S103
+AD104-J1Fract9_S104_L001_R1_001_noPrimers.fastq.gz   AD104-J1Fract9_S104
+AD105-J1Fract10_S105_L001_R1_001_noPrimers.fastq.gz AD105-J1Fract10_S105
+AD106-J1Fract11_S106_L001_R1_001_noPrimers.fastq.gz AD106-J1Fract11_S106
+AD107-Negtve1_S107_L001_R1_001_noPrimers.fastq.gz     AD107-Negtve1_S107
+AD108-Negtve2_S108_L001_R1_001_noPrimers.fastq.gz     AD108-Negtve2_S108
+AD109-Negtve3_S109_L001_R1_001_noPrimers.fastq.gz     AD109-Negtve3_S109
+                                                                                              file_name
+AD001-E1Fract1_S1_L001_R1_001_noPrimers.fastq.gz       AD001-E1Fract1_S1_L001_R1_001_noPrimers.fastq.gz
+AD002-E1Fract2_S2_L001_R1_001_noPrimers.fastq.gz       AD002-E1Fract2_S2_L001_R1_001_noPrimers.fastq.gz
+AD003-E1Fract3_S3_L001_R1_001_noPrimers.fastq.gz       AD003-E1Fract3_S3_L001_R1_001_noPrimers.fastq.gz
+AD004-E1Fract4_S4_L001_R1_001_noPrimers.fastq.gz       AD004-E1Fract4_S4_L001_R1_001_noPrimers.fastq.gz
+AD005-E1Fract5_S5_L001_R1_001_noPrimers.fastq.gz       AD005-E1Fract5_S5_L001_R1_001_noPrimers.fastq.gz
+AD006-E1Fract6_S6_L001_R1_001_noPrimers.fastq.gz       AD006-E1Fract6_S6_L001_R1_001_noPrimers.fastq.gz
+AD007-E1Fract7_S7_L001_R1_001_noPrimers.fastq.gz       AD007-E1Fract7_S7_L001_R1_001_noPrimers.fastq.gz
+AD008-E1Fract8_S8_L001_R1_001_noPrimers.fastq.gz       AD008-E1Fract8_S8_L001_R1_001_noPrimers.fastq.gz
+AD009-E1Fract9_S9_L001_R1_001_noPrimers.fastq.gz       AD009-E1Fract9_S9_L001_R1_001_noPrimers.fastq.gz
+AD010-E1Fract10_S10_L001_R1_001_noPrimers.fastq.gz   AD010-E1Fract10_S10_L001_R1_001_noPrimers.fastq.gz
+AD011-E1Fract11_S11_L001_R1_001_noPrimers.fastq.gz   AD011-E1Fract11_S11_L001_R1_001_noPrimers.fastq.gz
+AD012-E1Fract12_S12_L001_R1_001_noPrimers.fastq.gz   AD012-E1Fract12_S12_L001_R1_001_noPrimers.fastq.gz
+AD013-E2Fract1_S13_L001_R1_001_noPrimers.fastq.gz     AD013-E2Fract1_S13_L001_R1_001_noPrimers.fastq.gz
+AD014-E2Fract2_S14_L001_R1_001_noPrimers.fastq.gz     AD014-E2Fract2_S14_L001_R1_001_noPrimers.fastq.gz
+AD015-E2Fract3_S15_L001_R1_001_noPrimers.fastq.gz     AD015-E2Fract3_S15_L001_R1_001_noPrimers.fastq.gz
+AD016-E2Fract4_S16_L001_R1_001_noPrimers.fastq.gz     AD016-E2Fract4_S16_L001_R1_001_noPrimers.fastq.gz
+AD017-E2Fract5_S17_L001_R1_001_noPrimers.fastq.gz     AD017-E2Fract5_S17_L001_R1_001_noPrimers.fastq.gz
+AD018-E2Fract6_S18_L001_R1_001_noPrimers.fastq.gz     AD018-E2Fract6_S18_L001_R1_001_noPrimers.fastq.gz
+AD019-E2Fract7_S19_L001_R1_001_noPrimers.fastq.gz     AD019-E2Fract7_S19_L001_R1_001_noPrimers.fastq.gz
+AD020-E2Fract8_S20_L001_R1_001_noPrimers.fastq.gz     AD020-E2Fract8_S20_L001_R1_001_noPrimers.fastq.gz
+AD021-E2Fract9_S21_L001_R1_001_noPrimers.fastq.gz     AD021-E2Fract9_S21_L001_R1_001_noPrimers.fastq.gz
+AD022-E2Fract10_S22_L001_R1_001_noPrimers.fastq.gz   AD022-E2Fract10_S22_L001_R1_001_noPrimers.fastq.gz
+AD023-E2Fract11_S23_L001_R1_001_noPrimers.fastq.gz   AD023-E2Fract11_S23_L001_R1_001_noPrimers.fastq.gz
+AD024-E2Fract12_S24_L001_R1_001_noPrimers.fastq.gz   AD024-E2Fract12_S24_L001_R1_001_noPrimers.fastq.gz
+AD025-E3Fract1_S25_L001_R1_001_noPrimers.fastq.gz     AD025-E3Fract1_S25_L001_R1_001_noPrimers.fastq.gz
+AD026-E3Fract2_S26_L001_R1_001_noPrimers.fastq.gz     AD026-E3Fract2_S26_L001_R1_001_noPrimers.fastq.gz
+AD027-E3Fract3_S27_L001_R1_001_noPrimers.fastq.gz     AD027-E3Fract3_S27_L001_R1_001_noPrimers.fastq.gz
+AD028-E3Fract4_S28_L001_R1_001_noPrimers.fastq.gz     AD028-E3Fract4_S28_L001_R1_001_noPrimers.fastq.gz
+AD029-E3Fract5_S29_L001_R1_001_noPrimers.fastq.gz     AD029-E3Fract5_S29_L001_R1_001_noPrimers.fastq.gz
+AD030-E3Fract6_S30_L001_R1_001_noPrimers.fastq.gz     AD030-E3Fract6_S30_L001_R1_001_noPrimers.fastq.gz
+AD031-E3Fract7_S31_L001_R1_001_noPrimers.fastq.gz     AD031-E3Fract7_S31_L001_R1_001_noPrimers.fastq.gz
+AD032-E3Fract8_S32_L001_R1_001_noPrimers.fastq.gz     AD032-E3Fract8_S32_L001_R1_001_noPrimers.fastq.gz
+AD033-E3Fract9_S33_L001_R1_001_noPrimers.fastq.gz     AD033-E3Fract9_S33_L001_R1_001_noPrimers.fastq.gz
+AD034-E3Fract10_S34_L001_R1_001_noPrimers.fastq.gz   AD034-E3Fract10_S34_L001_R1_001_noPrimers.fastq.gz
+AD035-E3Fract11_S35_L001_R1_001_noPrimers.fastq.gz   AD035-E3Fract11_S35_L001_R1_001_noPrimers.fastq.gz
+AD036-E3Fract12_S36_L001_R1_001_noPrimers.fastq.gz   AD036-E3Fract12_S36_L001_R1_001_noPrimers.fastq.gz
+AD037-E4Fract2_S37_L001_R1_001_noPrimers.fastq.gz     AD037-E4Fract2_S37_L001_R1_001_noPrimers.fastq.gz
+AD038-E4Fract3_S38_L001_R1_001_noPrimers.fastq.gz     AD038-E4Fract3_S38_L001_R1_001_noPrimers.fastq.gz
+AD039-E4Fract4_S39_L001_R1_001_noPrimers.fastq.gz     AD039-E4Fract4_S39_L001_R1_001_noPrimers.fastq.gz
+AD040-E4Fract5_S40_L001_R1_001_noPrimers.fastq.gz     AD040-E4Fract5_S40_L001_R1_001_noPrimers.fastq.gz
+AD041-E4Fract6_S41_L001_R1_001_noPrimers.fastq.gz     AD041-E4Fract6_S41_L001_R1_001_noPrimers.fastq.gz
+AD042-E4Fract7_S42_L001_R1_001_noPrimers.fastq.gz     AD042-E4Fract7_S42_L001_R1_001_noPrimers.fastq.gz
+AD043-E4Fract8_S43_L001_R1_001_noPrimers.fastq.gz     AD043-E4Fract8_S43_L001_R1_001_noPrimers.fastq.gz
+AD044-E4Fract9_S44_L001_R1_001_noPrimers.fastq.gz     AD044-E4Fract9_S44_L001_R1_001_noPrimers.fastq.gz
+AD045-E4Fract10_S45_L001_R1_001_noPrimers.fastq.gz   AD045-E4Fract10_S45_L001_R1_001_noPrimers.fastq.gz
+AD046-E4Fract11_S46_L001_R1_001_noPrimers.fastq.gz   AD046-E4Fract11_S46_L001_R1_001_noPrimers.fastq.gz
+AD047-F1Fract2_S47_L001_R1_001_noPrimers.fastq.gz     AD047-F1Fract2_S47_L001_R1_001_noPrimers.fastq.gz
+AD048-F1Fract3_S48_L001_R1_001_noPrimers.fastq.gz     AD048-F1Fract3_S48_L001_R1_001_noPrimers.fastq.gz
+AD049-F1Fract4_S49_L001_R1_001_noPrimers.fastq.gz     AD049-F1Fract4_S49_L001_R1_001_noPrimers.fastq.gz
+AD050-F1Fract5_S50_L001_R1_001_noPrimers.fastq.gz     AD050-F1Fract5_S50_L001_R1_001_noPrimers.fastq.gz
+AD051-F1Fract6_S51_L001_R1_001_noPrimers.fastq.gz     AD051-F1Fract6_S51_L001_R1_001_noPrimers.fastq.gz
+AD052-F1Fract7_S52_L001_R1_001_noPrimers.fastq.gz     AD052-F1Fract7_S52_L001_R1_001_noPrimers.fastq.gz
+AD053-F1Fract8_S53_L001_R1_001_noPrimers.fastq.gz     AD053-F1Fract8_S53_L001_R1_001_noPrimers.fastq.gz
+AD054-F1Fract9_S54_L001_R1_001_noPrimers.fastq.gz     AD054-F1Fract9_S54_L001_R1_001_noPrimers.fastq.gz
+AD055-F1Fract10_S55_L001_R1_001_noPrimers.fastq.gz   AD055-F1Fract10_S55_L001_R1_001_noPrimers.fastq.gz
+AD056-F1Fract11_S56_L001_R1_001_noPrimers.fastq.gz   AD056-F1Fract11_S56_L001_R1_001_noPrimers.fastq.gz
+AD057-I1Fract2_S57_L001_R1_001_noPrimers.fastq.gz     AD057-I1Fract2_S57_L001_R1_001_noPrimers.fastq.gz
+AD058-I1Fract3_S58_L001_R1_001_noPrimers.fastq.gz     AD058-I1Fract3_S58_L001_R1_001_noPrimers.fastq.gz
+AD059-I1Fract4_S59_L001_R1_001_noPrimers.fastq.gz     AD059-I1Fract4_S59_L001_R1_001_noPrimers.fastq.gz
+AD060-I1Fract5_S60_L001_R1_001_noPrimers.fastq.gz     AD060-I1Fract5_S60_L001_R1_001_noPrimers.fastq.gz
+AD061-I1Fract6_S61_L001_R1_001_noPrimers.fastq.gz     AD061-I1Fract6_S61_L001_R1_001_noPrimers.fastq.gz
+AD062-I1Fract7_S62_L001_R1_001_noPrimers.fastq.gz     AD062-I1Fract7_S62_L001_R1_001_noPrimers.fastq.gz
+AD063-I1Fract8_S63_L001_R1_001_noPrimers.fastq.gz     AD063-I1Fract8_S63_L001_R1_001_noPrimers.fastq.gz
+AD064-I1Fract9_S64_L001_R1_001_noPrimers.fastq.gz     AD064-I1Fract9_S64_L001_R1_001_noPrimers.fastq.gz
+AD065-I1Fract10_S65_L001_R1_001_noPrimers.fastq.gz   AD065-I1Fract10_S65_L001_R1_001_noPrimers.fastq.gz
+AD066-I1Fract11_S66_L001_R1_001_noPrimers.fastq.gz   AD066-I1Fract11_S66_L001_R1_001_noPrimers.fastq.gz
+AD067-I2Fract2_S67_L001_R1_001_noPrimers.fastq.gz     AD067-I2Fract2_S67_L001_R1_001_noPrimers.fastq.gz
+AD068-I2Fract3_S68_L001_R1_001_noPrimers.fastq.gz     AD068-I2Fract3_S68_L001_R1_001_noPrimers.fastq.gz
+AD069-I2Fract4_S69_L001_R1_001_noPrimers.fastq.gz     AD069-I2Fract4_S69_L001_R1_001_noPrimers.fastq.gz
+AD070-I2Fract5_S70_L001_R1_001_noPrimers.fastq.gz     AD070-I2Fract5_S70_L001_R1_001_noPrimers.fastq.gz
+AD071-I2Fract6_S71_L001_R1_001_noPrimers.fastq.gz     AD071-I2Fract6_S71_L001_R1_001_noPrimers.fastq.gz
+AD072-I2Fract7_S72_L001_R1_001_noPrimers.fastq.gz     AD072-I2Fract7_S72_L001_R1_001_noPrimers.fastq.gz
+AD073-I2Fract8_S73_L001_R1_001_noPrimers.fastq.gz     AD073-I2Fract8_S73_L001_R1_001_noPrimers.fastq.gz
+AD074-I2Fract9_S74_L001_R1_001_noPrimers.fastq.gz     AD074-I2Fract9_S74_L001_R1_001_noPrimers.fastq.gz
+AD075-I2Fract10_S75_L001_R1_001_noPrimers.fastq.gz   AD075-I2Fract10_S75_L001_R1_001_noPrimers.fastq.gz
+AD076-I2Fract11_S76_L001_R1_001_noPrimers.fastq.gz   AD076-I2Fract11_S76_L001_R1_001_noPrimers.fastq.gz
+AD077-I3Fract2_S77_L001_R1_001_noPrimers.fastq.gz     AD077-I3Fract2_S77_L001_R1_001_noPrimers.fastq.gz
+AD078-I3Fract3_S78_L001_R1_001_noPrimers.fastq.gz     AD078-I3Fract3_S78_L001_R1_001_noPrimers.fastq.gz
+AD079-I3Fract4_S79_L001_R1_001_noPrimers.fastq.gz     AD079-I3Fract4_S79_L001_R1_001_noPrimers.fastq.gz
+AD080-I3Fract5_S80_L001_R1_001_noPrimers.fastq.gz     AD080-I3Fract5_S80_L001_R1_001_noPrimers.fastq.gz
+AD081-I3Fract6_S81_L001_R1_001_noPrimers.fastq.gz     AD081-I3Fract6_S81_L001_R1_001_noPrimers.fastq.gz
+AD082-I3Fract7_S82_L001_R1_001_noPrimers.fastq.gz     AD082-I3Fract7_S82_L001_R1_001_noPrimers.fastq.gz
+AD083-I3Fract8_S83_L001_R1_001_noPrimers.fastq.gz     AD083-I3Fract8_S83_L001_R1_001_noPrimers.fastq.gz
+AD084-I3Fract9_S84_L001_R1_001_noPrimers.fastq.gz     AD084-I3Fract9_S84_L001_R1_001_noPrimers.fastq.gz
+AD085-I3Fract10_S85_L001_R1_001_noPrimers.fastq.gz   AD085-I3Fract10_S85_L001_R1_001_noPrimers.fastq.gz
+AD086-I3Fract11_S86_L001_R1_001_noPrimers.fastq.gz   AD086-I3Fract11_S86_L001_R1_001_noPrimers.fastq.gz
+AD087-I4Fract2_S87_L001_R1_001_noPrimers.fastq.gz     AD087-I4Fract2_S87_L001_R1_001_noPrimers.fastq.gz
+AD088-I4Fract3_S88_L001_R1_001_noPrimers.fastq.gz     AD088-I4Fract3_S88_L001_R1_001_noPrimers.fastq.gz
+AD089-I4Fract4_S89_L001_R1_001_noPrimers.fastq.gz     AD089-I4Fract4_S89_L001_R1_001_noPrimers.fastq.gz
+AD090-I4Fract5_S90_L001_R1_001_noPrimers.fastq.gz     AD090-I4Fract5_S90_L001_R1_001_noPrimers.fastq.gz
+AD091-I4Fract6_S91_L001_R1_001_noPrimers.fastq.gz     AD091-I4Fract6_S91_L001_R1_001_noPrimers.fastq.gz
+AD092-I4Fract7_S92_L001_R1_001_noPrimers.fastq.gz     AD092-I4Fract7_S92_L001_R1_001_noPrimers.fastq.gz
+AD093-I4Fract8_S93_L001_R1_001_noPrimers.fastq.gz     AD093-I4Fract8_S93_L001_R1_001_noPrimers.fastq.gz
+AD094-I4Fract9_S94_L001_R1_001_noPrimers.fastq.gz     AD094-I4Fract9_S94_L001_R1_001_noPrimers.fastq.gz
+AD095-I4Fract10_S95_L001_R1_001_noPrimers.fastq.gz   AD095-I4Fract10_S95_L001_R1_001_noPrimers.fastq.gz
+AD096-I4Fract11_S96_L001_R1_001_noPrimers.fastq.gz   AD096-I4Fract11_S96_L001_R1_001_noPrimers.fastq.gz
+AD097-J1Fract2_S97_L001_R1_001_noPrimers.fastq.gz     AD097-J1Fract2_S97_L001_R1_001_noPrimers.fastq.gz
+AD098-J1Fract3_S98_L001_R1_001_noPrimers.fastq.gz     AD098-J1Fract3_S98_L001_R1_001_noPrimers.fastq.gz
+AD099-J1Fract4_S99_L001_R1_001_noPrimers.fastq.gz     AD099-J1Fract4_S99_L001_R1_001_noPrimers.fastq.gz
+AD100-J1Fract5_S100_L001_R1_001_noPrimers.fastq.gz   AD100-J1Fract5_S100_L001_R1_001_noPrimers.fastq.gz
+AD101-J1Fract6_S101_L001_R1_001_noPrimers.fastq.gz   AD101-J1Fract6_S101_L001_R1_001_noPrimers.fastq.gz
+AD102-J1Fract7_S102_L001_R1_001_noPrimers.fastq.gz   AD102-J1Fract7_S102_L001_R1_001_noPrimers.fastq.gz
+AD103-J1Fract8_S103_L001_R1_001_noPrimers.fastq.gz   AD103-J1Fract8_S103_L001_R1_001_noPrimers.fastq.gz
+AD104-J1Fract9_S104_L001_R1_001_noPrimers.fastq.gz   AD104-J1Fract9_S104_L001_R1_001_noPrimers.fastq.gz
+AD105-J1Fract10_S105_L001_R1_001_noPrimers.fastq.gz AD105-J1Fract10_S105_L001_R1_001_noPrimers.fastq.gz
+AD106-J1Fract11_S106_L001_R1_001_noPrimers.fastq.gz AD106-J1Fract11_S106_L001_R1_001_noPrimers.fastq.gz
+AD107-Negtve1_S107_L001_R1_001_noPrimers.fastq.gz     AD107-Negtve1_S107_L001_R1_001_noPrimers.fastq.gz
+AD108-Negtve2_S108_L001_R1_001_noPrimers.fastq.gz     AD108-Negtve2_S108_L001_R1_001_noPrimers.fastq.gz
+AD109-Negtve3_S109_L001_R1_001_noPrimers.fastq.gz     AD109-Negtve3_S109_L001_R1_001_noPrimers.fastq.gz
+                                                    reads.in reads.out
+AD001-E1Fract1_S1_L001_R1_001_noPrimers.fastq.gz      203072    189480
+AD002-E1Fract2_S2_L001_R1_001_noPrimers.fastq.gz      193516    186934
+AD003-E1Fract3_S3_L001_R1_001_noPrimers.fastq.gz      199058    189620
+AD004-E1Fract4_S4_L001_R1_001_noPrimers.fastq.gz      165730    159410
+AD005-E1Fract5_S5_L001_R1_001_noPrimers.fastq.gz      149802    146232
+AD006-E1Fract6_S6_L001_R1_001_noPrimers.fastq.gz      170172    165784
+AD007-E1Fract7_S7_L001_R1_001_noPrimers.fastq.gz      144592    140614
+AD008-E1Fract8_S8_L001_R1_001_noPrimers.fastq.gz       96988     94386
+AD009-E1Fract9_S9_L001_R1_001_noPrimers.fastq.gz      200064    190596
+AD010-E1Fract10_S10_L001_R1_001_noPrimers.fastq.gz    203064    198270
+AD011-E1Fract11_S11_L001_R1_001_noPrimers.fastq.gz    190264    184138
+AD012-E1Fract12_S12_L001_R1_001_noPrimers.fastq.gz    199908    193726
+AD013-E2Fract1_S13_L001_R1_001_noPrimers.fastq.gz     135846    131630
+AD014-E2Fract2_S14_L001_R1_001_noPrimers.fastq.gz     183474    178546
+AD015-E2Fract3_S15_L001_R1_001_noPrimers.fastq.gz     166100    157172
+AD016-E2Fract4_S16_L001_R1_001_noPrimers.fastq.gz     166190    158932
+AD017-E2Fract5_S17_L001_R1_001_noPrimers.fastq.gz     227684    218382
+AD018-E2Fract6_S18_L001_R1_001_noPrimers.fastq.gz     154000    148566
+AD019-E2Fract7_S19_L001_R1_001_noPrimers.fastq.gz     143520    140396
+AD020-E2Fract8_S20_L001_R1_001_noPrimers.fastq.gz      99352     96668
+AD021-E2Fract9_S21_L001_R1_001_noPrimers.fastq.gz     180178    175848
+AD022-E2Fract10_S22_L001_R1_001_noPrimers.fastq.gz    233950    224606
+AD023-E2Fract11_S23_L001_R1_001_noPrimers.fastq.gz    203760    197598
+AD024-E2Fract12_S24_L001_R1_001_noPrimers.fastq.gz    236458    226888
+AD025-E3Fract1_S25_L001_R1_001_noPrimers.fastq.gz     181040    175734
+AD026-E3Fract2_S26_L001_R1_001_noPrimers.fastq.gz     239558    232546
+AD027-E3Fract3_S27_L001_R1_001_noPrimers.fastq.gz     124570    121628
+AD028-E3Fract4_S28_L001_R1_001_noPrimers.fastq.gz     196070    191318
+AD029-E3Fract5_S29_L001_R1_001_noPrimers.fastq.gz     193190    189416
+AD030-E3Fract6_S30_L001_R1_001_noPrimers.fastq.gz     208792    203298
+AD031-E3Fract7_S31_L001_R1_001_noPrimers.fastq.gz     216158    212594
+AD032-E3Fract8_S32_L001_R1_001_noPrimers.fastq.gz     167898    159516
+AD033-E3Fract9_S33_L001_R1_001_noPrimers.fastq.gz     164308    159394
+AD034-E3Fract10_S34_L001_R1_001_noPrimers.fastq.gz    261946    251512
+AD035-E3Fract11_S35_L001_R1_001_noPrimers.fastq.gz    202822    196044
+AD036-E3Fract12_S36_L001_R1_001_noPrimers.fastq.gz    240794    230286
+AD037-E4Fract2_S37_L001_R1_001_noPrimers.fastq.gz     154658    151006
+AD038-E4Fract3_S38_L001_R1_001_noPrimers.fastq.gz     125256    122364
+AD039-E4Fract4_S39_L001_R1_001_noPrimers.fastq.gz     121260    118642
+AD040-E4Fract5_S40_L001_R1_001_noPrimers.fastq.gz     178538    174078
+AD041-E4Fract6_S41_L001_R1_001_noPrimers.fastq.gz     188820    184598
+AD042-E4Fract7_S42_L001_R1_001_noPrimers.fastq.gz     208886    205064
+AD043-E4Fract8_S43_L001_R1_001_noPrimers.fastq.gz     186212    183062
+AD044-E4Fract9_S44_L001_R1_001_noPrimers.fastq.gz     174004    170760
+AD045-E4Fract10_S45_L001_R1_001_noPrimers.fastq.gz    169370    165684
+AD046-E4Fract11_S46_L001_R1_001_noPrimers.fastq.gz    260728    255260
+AD047-F1Fract2_S47_L001_R1_001_noPrimers.fastq.gz     184724    181238
+AD048-F1Fract3_S48_L001_R1_001_noPrimers.fastq.gz     156674    153428
+AD049-F1Fract4_S49_L001_R1_001_noPrimers.fastq.gz     190798    184700
+AD050-F1Fract5_S50_L001_R1_001_noPrimers.fastq.gz     195250    189364
+AD051-F1Fract6_S51_L001_R1_001_noPrimers.fastq.gz     156870    154056
+AD052-F1Fract7_S52_L001_R1_001_noPrimers.fastq.gz     132310    129872
+AD053-F1Fract8_S53_L001_R1_001_noPrimers.fastq.gz     183382    179798
+AD054-F1Fract9_S54_L001_R1_001_noPrimers.fastq.gz      31986     31274
+AD055-F1Fract10_S55_L001_R1_001_noPrimers.fastq.gz    161878    158878
+AD056-F1Fract11_S56_L001_R1_001_noPrimers.fastq.gz     95770     94018
+AD057-I1Fract2_S57_L001_R1_001_noPrimers.fastq.gz     181110    176744
+AD058-I1Fract3_S58_L001_R1_001_noPrimers.fastq.gz      43520     42466
+AD059-I1Fract4_S59_L001_R1_001_noPrimers.fastq.gz     169528    165404
+AD060-I1Fract5_S60_L001_R1_001_noPrimers.fastq.gz     198114    194274
+AD061-I1Fract6_S61_L001_R1_001_noPrimers.fastq.gz     271656    266992
+AD062-I1Fract7_S62_L001_R1_001_noPrimers.fastq.gz     213682    209888
+AD063-I1Fract8_S63_L001_R1_001_noPrimers.fastq.gz     123174    120740
+AD064-I1Fract9_S64_L001_R1_001_noPrimers.fastq.gz      68918     67304
+AD065-I1Fract10_S65_L001_R1_001_noPrimers.fastq.gz    148204    145604
+AD066-I1Fract11_S66_L001_R1_001_noPrimers.fastq.gz    197904    193742
+AD067-I2Fract2_S67_L001_R1_001_noPrimers.fastq.gz     191240    186854
+AD068-I2Fract3_S68_L001_R1_001_noPrimers.fastq.gz     188140    183528
+AD069-I2Fract4_S69_L001_R1_001_noPrimers.fastq.gz     192762    187470
+AD070-I2Fract5_S70_L001_R1_001_noPrimers.fastq.gz     194756    189864
+AD071-I2Fract6_S71_L001_R1_001_noPrimers.fastq.gz     190060    186536
+AD072-I2Fract7_S72_L001_R1_001_noPrimers.fastq.gz     175274    171944
+AD073-I2Fract8_S73_L001_R1_001_noPrimers.fastq.gz     195606    192528
+AD074-I2Fract9_S74_L001_R1_001_noPrimers.fastq.gz     202076    197996
+AD075-I2Fract10_S75_L001_R1_001_noPrimers.fastq.gz    249738    244818
+AD076-I2Fract11_S76_L001_R1_001_noPrimers.fastq.gz    183086    179390
+AD077-I3Fract2_S77_L001_R1_001_noPrimers.fastq.gz         28        24
+AD078-I3Fract3_S78_L001_R1_001_noPrimers.fastq.gz     134906    130930
+AD079-I3Fract4_S79_L001_R1_001_noPrimers.fastq.gz     157934    154162
+AD080-I3Fract5_S80_L001_R1_001_noPrimers.fastq.gz     222268    217502
+AD081-I3Fract6_S81_L001_R1_001_noPrimers.fastq.gz     181088    177766
+AD082-I3Fract7_S82_L001_R1_001_noPrimers.fastq.gz      80658     79208
+AD083-I3Fract8_S83_L001_R1_001_noPrimers.fastq.gz     195636    192074
+AD084-I3Fract9_S84_L001_R1_001_noPrimers.fastq.gz     164196    161112
+AD085-I3Fract10_S85_L001_R1_001_noPrimers.fastq.gz    238004    233282
+AD086-I3Fract11_S86_L001_R1_001_noPrimers.fastq.gz    235286    230262
+AD087-I4Fract2_S87_L001_R1_001_noPrimers.fastq.gz     200102    196008
+AD088-I4Fract3_S88_L001_R1_001_noPrimers.fastq.gz     188886    182116
+AD089-I4Fract4_S89_L001_R1_001_noPrimers.fastq.gz     227564    223324
+AD090-I4Fract5_S90_L001_R1_001_noPrimers.fastq.gz     186398    183166
+AD091-I4Fract6_S91_L001_R1_001_noPrimers.fastq.gz     178962    175260
+AD092-I4Fract7_S92_L001_R1_001_noPrimers.fastq.gz     170036    166902
+AD093-I4Fract8_S93_L001_R1_001_noPrimers.fastq.gz      99652     97742
+AD094-I4Fract9_S94_L001_R1_001_noPrimers.fastq.gz     165174    161422
+AD095-I4Fract10_S95_L001_R1_001_noPrimers.fastq.gz    199992    195276
+AD096-I4Fract11_S96_L001_R1_001_noPrimers.fastq.gz    160058    156342
+AD097-J1Fract2_S97_L001_R1_001_noPrimers.fastq.gz     219684    212834
+AD098-J1Fract3_S98_L001_R1_001_noPrimers.fastq.gz          0         0
+AD099-J1Fract4_S99_L001_R1_001_noPrimers.fastq.gz      73392     71888
+AD100-J1Fract5_S100_L001_R1_001_noPrimers.fastq.gz     93274     91257
+AD101-J1Fract6_S101_L001_R1_001_noPrimers.fastq.gz     82915     80660
+AD102-J1Fract7_S102_L001_R1_001_noPrimers.fastq.gz     83946     82132
+AD103-J1Fract8_S103_L001_R1_001_noPrimers.fastq.gz    102355    100486
+AD104-J1Fract9_S104_L001_R1_001_noPrimers.fastq.gz     87987     85595
+AD105-J1Fract10_S105_L001_R1_001_noPrimers.fastq.gz   131020    127931
+AD106-J1Fract11_S106_L001_R1_001_noPrimers.fastq.gz   122432    115469
+AD107-Negtve1_S107_L001_R1_001_noPrimers.fastq.gz      39484     35660
+AD108-Negtve2_S108_L001_R1_001_noPrimers.fastq.gz      35363     32313
+AD109-Negtve3_S109_L001_R1_001_noPrimers.fastq.gz      19740     17031
+[1] "Sample: AD098-J1Fract3_S98 was filtered out"
+
+Learn the error rates:
+
+109353048 total bases in 816080 reads from 6 samples will be used for learning the error rates.
+106460708 total bases in 800806 reads from 4 samples will be used for learning the error rates.
+Warning messages:
+1: In scale_y_log10() : log-10 transformation introduced infinite values.
+2: In scale_y_log10() : log-10 transformation introduced infinite values.
+Warning messages:
+1: In scale_y_log10() : log-10 transformation introduced infinite values.
+2: In scale_y_log10() : log-10 transformation introduced infinite values.
+
+Dereplicate:
+
+Dereplicating sequence entries in Fastq file: ..//filtered/AD001-E1Fract1_S1_R1_filt.fastq.gz
+Encountered 52665 unique sequences from 189480 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD002-E1Fract2_S2_R1_filt.fastq.gz
+Encountered 39398 unique sequences from 186934 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD003-E1Fract3_S3_R1_filt.fastq.gz
+Encountered 43384 unique sequences from 189620 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD004-E1Fract4_S4_R1_filt.fastq.gz
+Encountered 34426 unique sequences from 159410 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD005-E1Fract5_S5_R1_filt.fastq.gz
+Encountered 31186 unique sequences from 146232 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD006-E1Fract6_S6_R1_filt.fastq.gz
+Encountered 35715 unique sequences from 165784 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD007-E1Fract7_S7_R1_filt.fastq.gz
+Encountered 31278 unique sequences from 140614 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD008-E1Fract8_S8_R1_filt.fastq.gz
+Encountered 20006 unique sequences from 94386 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD009-E1Fract9_S9_R1_filt.fastq.gz
+Encountered 42248 unique sequences from 190596 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD010-E1Fract10_S10_R1_filt.fastq.gz
+Encountered 39551 unique sequences from 198270 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD011-E1Fract11_S11_R1_filt.fastq.gz
+Encountered 39170 unique sequences from 184138 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD012-E1Fract12_S12_R1_filt.fastq.gz
+Encountered 41349 unique sequences from 193726 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD013-E2Fract1_S13_R1_filt.fastq.gz
+Encountered 27171 unique sequences from 131630 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD014-E2Fract2_S14_R1_filt.fastq.gz
+Encountered 35711 unique sequences from 178546 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD015-E2Fract3_S15_R1_filt.fastq.gz
+Encountered 36404 unique sequences from 157172 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD016-E2Fract4_S16_R1_filt.fastq.gz
+Encountered 34879 unique sequences from 158932 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD017-E2Fract5_S17_R1_filt.fastq.gz
+Encountered 47903 unique sequences from 218382 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD018-E2Fract6_S18_R1_filt.fastq.gz
+Encountered 35351 unique sequences from 148566 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD019-E2Fract7_S19_R1_filt.fastq.gz
+Encountered 29427 unique sequences from 140396 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD020-E2Fract8_S20_R1_filt.fastq.gz
+Encountered 20945 unique sequences from 96668 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD021-E2Fract9_S21_R1_filt.fastq.gz
+Encountered 35002 unique sequences from 175848 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD022-E2Fract10_S22_R1_filt.fastq.gz
+Encountered 48827 unique sequences from 224606 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD023-E2Fract11_S23_R1_filt.fastq.gz
+Encountered 41481 unique sequences from 197598 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD024-E2Fract12_S24_R1_filt.fastq.gz
+Encountered 51586 unique sequences from 226888 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD025-E3Fract1_S25_R1_filt.fastq.gz
+Encountered 36808 unique sequences from 175734 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD026-E3Fract2_S26_R1_filt.fastq.gz
+Encountered 46233 unique sequences from 232546 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD027-E3Fract3_S27_R1_filt.fastq.gz
+Encountered 24705 unique sequences from 121628 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD028-E3Fract4_S28_R1_filt.fastq.gz
+Encountered 38562 unique sequences from 191318 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD029-E3Fract5_S29_R1_filt.fastq.gz
+Encountered 38273 unique sequences from 189416 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD030-E3Fract6_S30_R1_filt.fastq.gz
+Encountered 43630 unique sequences from 203298 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD031-E3Fract7_S31_R1_filt.fastq.gz
+Encountered 40098 unique sequences from 212594 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD032-E3Fract8_S32_R1_filt.fastq.gz
+Encountered 39098 unique sequences from 159516 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD033-E3Fract9_S33_R1_filt.fastq.gz
+Encountered 33952 unique sequences from 159394 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD034-E3Fract10_S34_R1_filt.fastq.gz
+Encountered 55222 unique sequences from 251512 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD035-E3Fract11_S35_R1_filt.fastq.gz
+Encountered 43047 unique sequences from 196044 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD036-E3Fract12_S36_R1_filt.fastq.gz
+Encountered 52033 unique sequences from 230286 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD037-E4Fract2_S37_R1_filt.fastq.gz
+Encountered 30369 unique sequences from 151006 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD038-E4Fract3_S38_R1_filt.fastq.gz
+Encountered 25110 unique sequences from 122364 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD039-E4Fract4_S39_R1_filt.fastq.gz
+Encountered 25353 unique sequences from 118642 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD040-E4Fract5_S40_R1_filt.fastq.gz
+Encountered 34172 unique sequences from 174078 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD041-E4Fract6_S41_R1_filt.fastq.gz
+Encountered 35876 unique sequences from 184598 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD042-E4Fract7_S42_R1_filt.fastq.gz
+Encountered 40264 unique sequences from 205064 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD043-E4Fract8_S43_R1_filt.fastq.gz
+Encountered 34774 unique sequences from 183062 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD044-E4Fract9_S44_R1_filt.fastq.gz
+Encountered 34449 unique sequences from 170760 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD045-E4Fract10_S45_R1_filt.fastq.gz
+Encountered 34510 unique sequences from 165684 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD046-E4Fract11_S46_R1_filt.fastq.gz
+Encountered 47732 unique sequences from 255260 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD047-F1Fract2_S47_R1_filt.fastq.gz
+Encountered 35646 unique sequences from 181238 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD048-F1Fract3_S48_R1_filt.fastq.gz
+Encountered 31670 unique sequences from 153428 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD049-F1Fract4_S49_R1_filt.fastq.gz
+Encountered 42190 unique sequences from 184700 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD050-F1Fract5_S50_R1_filt.fastq.gz
+Encountered 43860 unique sequences from 189364 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD051-F1Fract6_S51_R1_filt.fastq.gz
+Encountered 33715 unique sequences from 154056 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD052-F1Fract7_S52_R1_filt.fastq.gz
+Encountered 28985 unique sequences from 129872 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD053-F1Fract8_S53_R1_filt.fastq.gz
+Encountered 38200 unique sequences from 179798 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD054-F1Fract9_S54_R1_filt.fastq.gz
+Encountered 8562 unique sequences from 31274 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD055-F1Fract10_S55_R1_filt.fastq.gz
+Encountered 33032 unique sequences from 158878 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD056-F1Fract11_S56_R1_filt.fastq.gz
+Encountered 21334 unique sequences from 94018 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD057-I1Fract2_S57_R1_filt.fastq.gz
+Encountered 34131 unique sequences from 176744 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD058-I1Fract3_S58_R1_filt.fastq.gz
+Encountered 10021 unique sequences from 42466 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD059-I1Fract4_S59_R1_filt.fastq.gz
+Encountered 31140 unique sequences from 165404 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD060-I1Fract5_S60_R1_filt.fastq.gz
+Encountered 37559 unique sequences from 194274 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD061-I1Fract6_S61_R1_filt.fastq.gz
+Encountered 52324 unique sequences from 266992 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD062-I1Fract7_S62_R1_filt.fastq.gz
+Encountered 43065 unique sequences from 209888 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD063-I1Fract8_S63_R1_filt.fastq.gz
+Encountered 25351 unique sequences from 120740 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD064-I1Fract9_S64_R1_filt.fastq.gz
+Encountered 14818 unique sequences from 67304 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD065-I1Fract10_S65_R1_filt.fastq.gz
+Encountered 28813 unique sequences from 145604 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD066-I1Fract11_S66_R1_filt.fastq.gz
+Encountered 38275 unique sequences from 193742 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD067-I2Fract2_S67_R1_filt.fastq.gz
+Encountered 35246 unique sequences from 186854 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD068-I2Fract3_S68_R1_filt.fastq.gz
+Encountered 33918 unique sequences from 183528 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD069-I2Fract4_S69_R1_filt.fastq.gz
+Encountered 34712 unique sequences from 187470 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD070-I2Fract5_S70_R1_filt.fastq.gz
+Encountered 38837 unique sequences from 189864 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD071-I2Fract6_S71_R1_filt.fastq.gz
+Encountered 37607 unique sequences from 186536 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD072-I2Fract7_S72_R1_filt.fastq.gz
+Encountered 35898 unique sequences from 171944 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD073-I2Fract8_S73_R1_filt.fastq.gz
+Encountered 37225 unique sequences from 192528 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD074-I2Fract9_S74_R1_filt.fastq.gz
+Encountered 38027 unique sequences from 197996 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD075-I2Fract10_S75_R1_filt.fastq.gz
+Encountered 46452 unique sequences from 244818 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD076-I2Fract11_S76_R1_filt.fastq.gz
+Encountered 35126 unique sequences from 179390 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD077-I3Fract2_S77_R1_filt.fastq.gz
+Encountered 12 unique sequences from 24 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD078-I3Fract3_S78_R1_filt.fastq.gz
+Encountered 28165 unique sequences from 130930 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD079-I3Fract4_S79_R1_filt.fastq.gz
+Encountered 30661 unique sequences from 154162 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD080-I3Fract5_S80_R1_filt.fastq.gz
+Encountered 42381 unique sequences from 217502 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD081-I3Fract6_S81_R1_filt.fastq.gz
+Encountered 36661 unique sequences from 177766 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD082-I3Fract7_S82_R1_filt.fastq.gz
+Encountered 17382 unique sequences from 79208 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD083-I3Fract8_S83_R1_filt.fastq.gz
+Encountered 39178 unique sequences from 192074 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD084-I3Fract9_S84_R1_filt.fastq.gz
+Encountered 33829 unique sequences from 161112 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD085-I3Fract10_S85_R1_filt.fastq.gz
+Encountered 46785 unique sequences from 233282 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD086-I3Fract11_S86_R1_filt.fastq.gz
+Encountered 46490 unique sequences from 230262 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD087-I4Fract2_S87_R1_filt.fastq.gz
+Encountered 38089 unique sequences from 196008 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD088-I4Fract3_S88_R1_filt.fastq.gz
+Encountered 41121 unique sequences from 182116 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD089-I4Fract4_S89_R1_filt.fastq.gz
+Encountered 43199 unique sequences from 223324 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD090-I4Fract5_S90_R1_filt.fastq.gz
+Encountered 38114 unique sequences from 183166 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD091-I4Fract6_S91_R1_filt.fastq.gz
+Encountered 37634 unique sequences from 175260 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD092-I4Fract7_S92_R1_filt.fastq.gz
+Encountered 34848 unique sequences from 166902 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD093-I4Fract8_S93_R1_filt.fastq.gz
+Encountered 21049 unique sequences from 97742 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD094-I4Fract9_S94_R1_filt.fastq.gz
+Encountered 33190 unique sequences from 161422 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD095-I4Fract10_S95_R1_filt.fastq.gz
+Encountered 40693 unique sequences from 195276 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD096-I4Fract11_S96_R1_filt.fastq.gz
+Encountered 33900 unique sequences from 156342 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD097-J1Fract2_S97_R1_filt.fastq.gz
+Encountered 47267 unique sequences from 212834 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD099-J1Fract4_S99_R1_filt.fastq.gz
+Encountered 29730 unique sequences from 71888 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD100-J1Fract5_S100_R1_filt.fastq.gz
+Encountered 39091 unique sequences from 91257 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD101-J1Fract6_S101_R1_filt.fastq.gz
+Encountered 36319 unique sequences from 80660 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD102-J1Fract7_S102_R1_filt.fastq.gz
+Encountered 34900 unique sequences from 82132 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD103-J1Fract8_S103_R1_filt.fastq.gz
+Encountered 42436 unique sequences from 100486 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD104-J1Fract9_S104_R1_filt.fastq.gz
+Encountered 38292 unique sequences from 85595 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD105-J1Fract10_S105_R1_filt.fastq.gz
+Encountered 53068 unique sequences from 127931 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD106-J1Fract11_S106_R1_filt.fastq.gz
+Encountered 61084 unique sequences from 115469 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD107-Negtve1_S107_R1_filt.fastq.gz
+Encountered 20649 unique sequences from 35660 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD108-Negtve2_S108_R1_filt.fastq.gz
+Encountered 17227 unique sequences from 32313 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD109-Negtve3_S109_R1_filt.fastq.gz
+Encountered 13984 unique sequences from 17031 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD001-E1Fract1_S1_R2_filt.fastq.gz
+Encountered 40931 unique sequences from 189480 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD002-E1Fract2_S2_R2_filt.fastq.gz
+Encountered 39733 unique sequences from 186934 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD003-E1Fract3_S3_R2_filt.fastq.gz
+Encountered 41301 unique sequences from 189620 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD004-E1Fract4_S4_R2_filt.fastq.gz
+Encountered 35443 unique sequences from 159410 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD005-E1Fract5_S5_R2_filt.fastq.gz
+Encountered 33469 unique sequences from 146232 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD006-E1Fract6_S6_R2_filt.fastq.gz
+Encountered 37699 unique sequences from 165784 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD007-E1Fract7_S7_R2_filt.fastq.gz
+Encountered 31815 unique sequences from 140614 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD008-E1Fract8_S8_R2_filt.fastq.gz
+Encountered 20512 unique sequences from 94386 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD009-E1Fract9_S9_R2_filt.fastq.gz
+Encountered 39312 unique sequences from 190596 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD010-E1Fract10_S10_R2_filt.fastq.gz
+Encountered 42037 unique sequences from 198270 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD011-E1Fract11_S11_R2_filt.fastq.gz
+Encountered 39868 unique sequences from 184138 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD012-E1Fract12_S12_R2_filt.fastq.gz
+Encountered 41313 unique sequences from 193726 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD013-E2Fract1_S13_R2_filt.fastq.gz
+Encountered 28257 unique sequences from 131630 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD014-E2Fract2_S14_R2_filt.fastq.gz
+Encountered 37010 unique sequences from 178546 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD015-E2Fract3_S15_R2_filt.fastq.gz
+Encountered 34523 unique sequences from 157172 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD016-E2Fract4_S16_R2_filt.fastq.gz
+Encountered 34958 unique sequences from 158932 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD017-E2Fract5_S17_R2_filt.fastq.gz
+Encountered 47991 unique sequences from 218382 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD018-E2Fract6_S18_R2_filt.fastq.gz
+Encountered 34513 unique sequences from 148566 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD019-E2Fract7_S19_R2_filt.fastq.gz
+Encountered 31613 unique sequences from 140396 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD020-E2Fract8_S20_R2_filt.fastq.gz
+Encountered 21830 unique sequences from 96668 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD021-E2Fract9_S21_R2_filt.fastq.gz
+Encountered 37442 unique sequences from 175848 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD022-E2Fract10_S22_R2_filt.fastq.gz
+Encountered 47686 unique sequences from 224606 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD023-E2Fract11_S23_R2_filt.fastq.gz
+Encountered 42867 unique sequences from 197598 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD024-E2Fract12_S24_R2_filt.fastq.gz
+Encountered 48806 unique sequences from 226888 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD025-E3Fract1_S25_R2_filt.fastq.gz
+Encountered 36664 unique sequences from 175734 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD026-E3Fract2_S26_R2_filt.fastq.gz
+Encountered 46554 unique sequences from 232546 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD027-E3Fract3_S27_R2_filt.fastq.gz
+Encountered 26319 unique sequences from 121628 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD028-E3Fract4_S28_R2_filt.fastq.gz
+Encountered 41017 unique sequences from 191318 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD029-E3Fract5_S29_R2_filt.fastq.gz
+Encountered 42098 unique sequences from 189416 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD030-E3Fract6_S30_R2_filt.fastq.gz
+Encountered 45175 unique sequences from 203298 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD031-E3Fract7_S31_R2_filt.fastq.gz
+Encountered 43511 unique sequences from 212594 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD032-E3Fract8_S32_R2_filt.fastq.gz
+Encountered 34232 unique sequences from 159516 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD033-E3Fract9_S33_R2_filt.fastq.gz
+Encountered 34082 unique sequences from 159394 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD034-E3Fract10_S34_R2_filt.fastq.gz
+Encountered 51082 unique sequences from 251512 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD035-E3Fract11_S35_R2_filt.fastq.gz
+Encountered 41288 unique sequences from 196044 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD036-E3Fract12_S36_R2_filt.fastq.gz
+Encountered 48887 unique sequences from 230286 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD037-E4Fract2_S37_R2_filt.fastq.gz
+Encountered 31462 unique sequences from 151006 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD038-E4Fract3_S38_R2_filt.fastq.gz
+Encountered 25824 unique sequences from 122364 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD039-E4Fract4_S39_R2_filt.fastq.gz
+Encountered 26246 unique sequences from 118642 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD040-E4Fract5_S40_R2_filt.fastq.gz
+Encountered 35466 unique sequences from 174078 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD041-E4Fract6_S41_R2_filt.fastq.gz
+Encountered 37744 unique sequences from 184598 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD042-E4Fract7_S42_R2_filt.fastq.gz
+Encountered 43549 unique sequences from 205064 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD043-E4Fract8_S43_R2_filt.fastq.gz
+Encountered 37301 unique sequences from 183062 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD044-E4Fract9_S44_R2_filt.fastq.gz
+Encountered 37092 unique sequences from 170760 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD045-E4Fract10_S45_R2_filt.fastq.gz
+Encountered 35968 unique sequences from 165684 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD046-E4Fract11_S46_R2_filt.fastq.gz
+Encountered 50580 unique sequences from 255260 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD047-F1Fract2_S47_R2_filt.fastq.gz
+Encountered 38405 unique sequences from 181238 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD048-F1Fract3_S48_R2_filt.fastq.gz
+Encountered 33773 unique sequences from 153428 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD049-F1Fract4_S49_R2_filt.fastq.gz
+Encountered 41292 unique sequences from 184700 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD050-F1Fract5_S50_R2_filt.fastq.gz
+Encountered 44082 unique sequences from 189364 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD051-F1Fract6_S51_R2_filt.fastq.gz
+Encountered 36024 unique sequences from 154056 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD052-F1Fract7_S52_R2_filt.fastq.gz
+Encountered 30608 unique sequences from 129872 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD053-F1Fract8_S53_R2_filt.fastq.gz
+Encountered 40780 unique sequences from 179798 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD054-F1Fract9_S54_R2_filt.fastq.gz
+Encountered 8699 unique sequences from 31274 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD055-F1Fract10_S55_R2_filt.fastq.gz
+Encountered 35418 unique sequences from 158878 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD056-F1Fract11_S56_R2_filt.fastq.gz
+Encountered 22548 unique sequences from 94018 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD057-I1Fract2_S57_R2_filt.fastq.gz
+Encountered 37698 unique sequences from 176744 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD058-I1Fract3_S58_R2_filt.fastq.gz
+Encountered 10786 unique sequences from 42466 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD059-I1Fract4_S59_R2_filt.fastq.gz
+Encountered 35280 unique sequences from 165404 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD060-I1Fract5_S60_R2_filt.fastq.gz
+Encountered 42691 unique sequences from 194274 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD061-I1Fract6_S61_R2_filt.fastq.gz
+Encountered 58280 unique sequences from 266992 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD062-I1Fract7_S62_R2_filt.fastq.gz
+Encountered 47560 unique sequences from 209888 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD063-I1Fract8_S63_R2_filt.fastq.gz
+Encountered 27826 unique sequences from 120740 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD064-I1Fract9_S64_R2_filt.fastq.gz
+Encountered 15148 unique sequences from 67304 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD065-I1Fract10_S65_R2_filt.fastq.gz
+Encountered 31646 unique sequences from 145604 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD066-I1Fract11_S66_R2_filt.fastq.gz
+Encountered 41392 unique sequences from 193742 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD067-I2Fract2_S67_R2_filt.fastq.gz
+Encountered 39385 unique sequences from 186854 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD068-I2Fract3_S68_R2_filt.fastq.gz
+Encountered 38292 unique sequences from 183528 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD069-I2Fract4_S69_R2_filt.fastq.gz
+Encountered 39737 unique sequences from 187470 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD070-I2Fract5_S70_R2_filt.fastq.gz
+Encountered 43115 unique sequences from 189864 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD071-I2Fract6_S71_R2_filt.fastq.gz
+Encountered 42275 unique sequences from 186536 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD072-I2Fract7_S72_R2_filt.fastq.gz
+Encountered 39624 unique sequences from 171944 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD073-I2Fract8_S73_R2_filt.fastq.gz
+Encountered 41303 unique sequences from 192528 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD074-I2Fract9_S74_R2_filt.fastq.gz
+Encountered 41431 unique sequences from 197996 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD075-I2Fract10_S75_R2_filt.fastq.gz
+Encountered 51641 unique sequences from 244818 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD076-I2Fract11_S76_R2_filt.fastq.gz
+Encountered 38753 unique sequences from 179390 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD077-I3Fract2_S77_R2_filt.fastq.gz
+Encountered 12 unique sequences from 24 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD078-I3Fract3_S78_R2_filt.fastq.gz
+Encountered 28884 unique sequences from 130930 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD079-I3Fract4_S79_R2_filt.fastq.gz
+Encountered 33603 unique sequences from 154162 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD080-I3Fract5_S80_R2_filt.fastq.gz
+Encountered 47850 unique sequences from 217502 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD081-I3Fract6_S81_R2_filt.fastq.gz
+Encountered 40739 unique sequences from 177766 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD082-I3Fract7_S82_R2_filt.fastq.gz
+Encountered 18665 unique sequences from 79208 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD083-I3Fract8_S83_R2_filt.fastq.gz
+Encountered 43584 unique sequences from 192074 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD084-I3Fract9_S84_R2_filt.fastq.gz
+Encountered 36376 unique sequences from 161112 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD085-I3Fract10_S85_R2_filt.fastq.gz
+Encountered 50761 unique sequences from 233282 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD086-I3Fract11_S86_R2_filt.fastq.gz
+Encountered 50095 unique sequences from 230262 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD087-I4Fract2_S87_R2_filt.fastq.gz
+Encountered 40981 unique sequences from 196008 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD088-I4Fract3_S88_R2_filt.fastq.gz
+Encountered 39681 unique sequences from 182116 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD089-I4Fract4_S89_R2_filt.fastq.gz
+Encountered 47498 unique sequences from 223324 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD090-I4Fract5_S90_R2_filt.fastq.gz
+Encountered 41563 unique sequences from 183166 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD091-I4Fract6_S91_R2_filt.fastq.gz
+Encountered 40399 unique sequences from 175260 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD092-I4Fract7_S92_R2_filt.fastq.gz
+Encountered 38312 unique sequences from 166902 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD093-I4Fract8_S93_R2_filt.fastq.gz
+Encountered 22405 unique sequences from 97742 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD094-I4Fract9_S94_R2_filt.fastq.gz
+Encountered 34437 unique sequences from 161422 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD095-I4Fract10_S95_R2_filt.fastq.gz
+Encountered 41984 unique sequences from 195276 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD096-I4Fract11_S96_R2_filt.fastq.gz
+Encountered 35922 unique sequences from 156342 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD097-J1Fract2_S97_R2_filt.fastq.gz
+Encountered 46501 unique sequences from 212834 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD099-J1Fract4_S99_R2_filt.fastq.gz
+Encountered 31048 unique sequences from 71888 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD100-J1Fract5_S100_R2_filt.fastq.gz
+Encountered 40534 unique sequences from 91257 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD101-J1Fract6_S101_R2_filt.fastq.gz
+Encountered 36804 unique sequences from 80660 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD102-J1Fract7_S102_R2_filt.fastq.gz
+Encountered 36938 unique sequences from 82132 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD103-J1Fract8_S103_R2_filt.fastq.gz
+Encountered 46192 unique sequences from 100486 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD104-J1Fract9_S104_R2_filt.fastq.gz
+Encountered 39615 unique sequences from 85595 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD105-J1Fract10_S105_R2_filt.fastq.gz
+Encountered 56634 unique sequences from 127931 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD106-J1Fract11_S106_R2_filt.fastq.gz
+Encountered 48881 unique sequences from 115469 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD107-Negtve1_S107_R2_filt.fastq.gz
+Encountered 13789 unique sequences from 35660 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD108-Negtve2_S108_R2_filt.fastq.gz
+Encountered 12990 unique sequences from 32313 total sequences read.
+Dereplicating sequence entries in Fastq file: ..//filtered/AD109-Negtve3_S109_R2_filt.fastq.gz
+Encountered 8238 unique sequences from 17031 total sequences read.
+
+Sample inference with DADA2:
+
+Sample 1 - 189480 reads in 52665 unique sequences.
+Sample 2 - 186934 reads in 39398 unique sequences.
+Sample 3 - 189620 reads in 43384 unique sequences.
+Sample 4 - 159410 reads in 34426 unique sequences.
+Sample 5 - 146232 reads in 31186 unique sequences.
+Sample 6 - 165784 reads in 35715 unique sequences.
+Sample 7 - 140614 reads in 31278 unique sequences.
+Sample 8 - 94386 reads in 20006 unique sequences.
+Sample 9 - 190596 reads in 42248 unique sequences.
+Sample 10 - 198270 reads in 39551 unique sequences.
+Sample 11 - 184138 reads in 39170 unique sequences.
+Sample 12 - 193726 reads in 41349 unique sequences.
+Sample 13 - 131630 reads in 27171 unique sequences.
+Sample 14 - 178546 reads in 35711 unique sequences.
+Sample 15 - 157172 reads in 36404 unique sequences.
+Sample 16 - 158932 reads in 34879 unique sequences.
+Sample 17 - 218382 reads in 47903 unique sequences.
+Sample 18 - 148566 reads in 35351 unique sequences.
+Sample 19 - 140396 reads in 29427 unique sequences.
+Sample 20 - 96668 reads in 20945 unique sequences.
+Sample 21 - 175848 reads in 35002 unique sequences.
+Sample 22 - 224606 reads in 48827 unique sequences.
+Sample 23 - 197598 reads in 41481 unique sequences.
+Sample 24 - 226888 reads in 51586 unique sequences.
+Sample 25 - 175734 reads in 36808 unique sequences.
+Sample 26 - 232546 reads in 46233 unique sequences.
+Sample 27 - 121628 reads in 24705 unique sequences.
+Sample 28 - 191318 reads in 38562 unique sequences.
+Sample 29 - 189416 reads in 38273 unique sequences.
+Sample 30 - 203298 reads in 43630 unique sequences.
+Sample 31 - 212594 reads in 40098 unique sequences.
+Sample 32 - 159516 reads in 39098 unique sequences.
+Sample 33 - 159394 reads in 33952 unique sequences.
+Sample 34 - 251512 reads in 55222 unique sequences.
+Sample 35 - 196044 reads in 43047 unique sequences.
+Sample 36 - 230286 reads in 52033 unique sequences.
+Sample 37 - 151006 reads in 30369 unique sequences.
+Sample 38 - 122364 reads in 25110 unique sequences.
+Sample 39 - 118642 reads in 25353 unique sequences.
+Sample 40 - 174078 reads in 34172 unique sequences.
+Sample 41 - 184598 reads in 35876 unique sequences.
+Sample 42 - 205064 reads in 40264 unique sequences.
+Sample 43 - 183062 reads in 34774 unique sequences.
+Sample 44 - 170760 reads in 34449 unique sequences.
+Sample 45 - 165684 reads in 34510 unique sequences.
+Sample 46 - 255260 reads in 47732 unique sequences.
+Sample 47 - 181238 reads in 35646 unique sequences.
+Sample 48 - 153428 reads in 31670 unique sequences.
+Sample 49 - 184700 reads in 42190 unique sequences.
+Sample 50 - 189364 reads in 43860 unique sequences.
+Sample 51 - 154056 reads in 33715 unique sequences.
+Sample 52 - 129872 reads in 28985 unique sequences.
+Sample 53 - 179798 reads in 38200 unique sequences.
+Sample 54 - 31274 reads in 8562 unique sequences.
+Sample 55 - 158878 reads in 33032 unique sequences.
+Sample 56 - 94018 reads in 21334 unique sequences.
+Sample 57 - 176744 reads in 34131 unique sequences.
+Sample 58 - 42466 reads in 10021 unique sequences.
+Sample 59 - 165404 reads in 31140 unique sequences.
+Sample 60 - 194274 reads in 37559 unique sequences.
+Sample 61 - 266992 reads in 52324 unique sequences.
+Sample 62 - 209888 reads in 43065 unique sequences.
+Sample 63 - 120740 reads in 25351 unique sequences.
+Sample 64 - 67304 reads in 14818 unique sequences.
+Sample 65 - 145604 reads in 28813 unique sequences.
+Sample 66 - 193742 reads in 38275 unique sequences.
+Sample 67 - 186854 reads in 35246 unique sequences.
+Sample 68 - 183528 reads in 33918 unique sequences.
+Sample 69 - 187470 reads in 34712 unique sequences.
+Sample 70 - 189864 reads in 38837 unique sequences.
+Sample 71 - 186536 reads in 37607 unique sequences.
+Sample 72 - 171944 reads in 35898 unique sequences.
+Sample 73 - 192528 reads in 37225 unique sequences.
+Sample 74 - 197996 reads in 38027 unique sequences.
+Sample 75 - 244818 reads in 46452 unique sequences.
+Sample 76 - 179390 reads in 35126 unique sequences.
+Sample 77 - 24 reads in 12 unique sequences.
+Sample 78 - 130930 reads in 28165 unique sequences.
+Sample 79 - 154162 reads in 30661 unique sequences.
+Sample 80 - 217502 reads in 42381 unique sequences.
+Sample 81 - 177766 reads in 36661 unique sequences.
+Sample 82 - 79208 reads in 17382 unique sequences.
+Sample 83 - 192074 reads in 39178 unique sequences.
+Sample 84 - 161112 reads in 33829 unique sequences.
+Sample 85 - 233282 reads in 46785 unique sequences.
+Sample 86 - 230262 reads in 46490 unique sequences.
+Sample 87 - 196008 reads in 38089 unique sequences.
+Sample 88 - 182116 reads in 41121 unique sequences.
+Sample 89 - 223324 reads in 43199 unique sequences.
+Sample 90 - 183166 reads in 38114 unique sequences.
+Sample 91 - 175260 reads in 37634 unique sequences.
+Sample 92 - 166902 reads in 34848 unique sequences.
+Sample 93 - 97742 reads in 21049 unique sequences.
+Sample 94 - 161422 reads in 33190 unique sequences.
+Sample 95 - 195276 reads in 40693 unique sequences.
+Sample 96 - 156342 reads in 33900 unique sequences.
+Sample 97 - 212834 reads in 47267 unique sequences.
+Sample 98 - 71888 reads in 29730 unique sequences.
+Sample 99 - 91257 reads in 39091 unique sequences.
+Sample 100 - 80660 reads in 36319 unique sequences.
+Sample 101 - 82132 reads in 34900 unique sequences.
+Sample 102 - 100486 reads in 42436 unique sequences.
+Sample 103 - 85595 reads in 38292 unique sequences.
+Sample 104 - 127931 reads in 53068 unique sequences.
+Sample 105 - 115469 reads in 61084 unique sequences.
+Sample 106 - 35660 reads in 20649 unique sequences.
+Sample 107 - 32313 reads in 17227 unique sequences.
+Sample 108 - 17031 reads in 13984 unique sequences.
+
+   selfConsist step 2Sample 1 - 189480 reads in 40931 unique sequences.
+Sample 2 - 186934 reads in 39733 unique sequences.
+Sample 3 - 189620 reads in 41301 unique sequences.
+Sample 4 - 159410 reads in 35443 unique sequences.
+Sample 5 - 146232 reads in 33469 unique sequences.
+Sample 6 - 165784 reads in 37699 unique sequences.
+Sample 7 - 140614 reads in 31815 unique sequences.
+Sample 8 - 94386 reads in 20512 unique sequences.
+Sample 9 - 190596 reads in 39312 unique sequences.
+Sample 10 - 198270 reads in 42037 unique sequences.
+Sample 11 - 184138 reads in 39868 unique sequences.
+Sample 12 - 193726 reads in 41313 unique sequences.
+Sample 13 - 131630 reads in 28257 unique sequences.
+Sample 14 - 178546 reads in 37010 unique sequences.
+Sample 15 - 157172 reads in 34523 unique sequences.
+Sample 16 - 158932 reads in 34958 unique sequences.
+Sample 17 - 218382 reads in 47991 unique sequences.
+Sample 18 - 148566 reads in 34513 unique sequences.
+Sample 19 - 140396 reads in 31613 unique sequences.
+Sample 20 - 96668 reads in 21830 unique sequences.
+Sample 21 - 175848 reads in 37442 unique sequences.
+Sample 22 - 224606 reads in 47686 unique sequences.
+Sample 23 - 197598 reads in 42867 unique sequences.
+Sample 24 - 226888 reads in 48806 unique sequences.
+Sample 25 - 175734 reads in 36664 unique sequences.
+Sample 26 - 232546 reads in 46554 unique sequences.
+Sample 27 - 121628 reads in 26319 unique sequences.
+Sample 28 - 191318 reads in 41017 unique sequences.
+Sample 29 - 189416 reads in 42098 unique sequences.
+Sample 30 - 203298 reads in 45175 unique sequences.
+Sample 31 - 212594 reads in 43511 unique sequences.
+Sample 32 - 159516 reads in 34232 unique sequences.
+Sample 33 - 159394 reads in 34082 unique sequences.
+Sample 34 - 251512 reads in 51082 unique sequences.
+Sample 35 - 196044 reads in 41288 unique sequences.
+Sample 36 - 230286 reads in 48887 unique sequences.
+Sample 37 - 151006 reads in 31462 unique sequences.
+Sample 38 - 122364 reads in 25824 unique sequences.
+Sample 39 - 118642 reads in 26246 unique sequences.
+Sample 40 - 174078 reads in 35466 unique sequences.
+Sample 41 - 184598 reads in 37744 unique sequences.
+Sample 42 - 205064 reads in 43549 unique sequences.
+Sample 43 - 183062 reads in 37301 unique sequences.
+Sample 44 - 170760 reads in 37092 unique sequences.
+Sample 45 - 165684 reads in 35968 unique sequences.
+Sample 46 - 255260 reads in 50580 unique sequences.
+Sample 47 - 181238 reads in 38405 unique sequences.
+Sample 48 - 153428 reads in 33773 unique sequences.
+Sample 49 - 184700 reads in 41292 unique sequences.
+Sample 50 - 189364 reads in 44082 unique sequences.
+Sample 51 - 154056 reads in 36024 unique sequences.
+Sample 52 - 129872 reads in 30608 unique sequences.
+Sample 53 - 179798 reads in 40780 unique sequences.
+Sample 54 - 31274 reads in 8699 unique sequences.
+Sample 55 - 158878 reads in 35418 unique sequences.
+Sample 56 - 94018 reads in 22548 unique sequences.
+Sample 57 - 176744 reads in 37698 unique sequences.
+Sample 58 - 42466 reads in 10786 unique sequences.
+Sample 59 - 165404 reads in 35280 unique sequences.
+Sample 60 - 194274 reads in 42691 unique sequences.
+Sample 61 - 266992 reads in 58280 unique sequences.
+Sample 62 - 209888 reads in 47560 unique sequences.
+Sample 63 - 120740 reads in 27826 unique sequences.
+Sample 64 - 67304 reads in 15148 unique sequences.
+Sample 65 - 145604 reads in 31646 unique sequences.
+Sample 66 - 193742 reads in 41392 unique sequences.
+Sample 67 - 186854 reads in 39385 unique sequences.
+Sample 68 - 183528 reads in 38292 unique sequences.
+Sample 69 - 187470 reads in 39737 unique sequences.
+Sample 70 - 189864 reads in 43115 unique sequences.
+Sample 71 - 186536 reads in 42275 unique sequences.
+Sample 72 - 171944 reads in 39624 unique sequences.
+Sample 73 - 192528 reads in 41303 unique sequences.
+Sample 74 - 197996 reads in 41431 unique sequences.
+Sample 75 - 244818 reads in 51641 unique sequences.
+Sample 76 - 179390 reads in 38753 unique sequences.
+Sample 77 - 24 reads in 12 unique sequences.
+Sample 78 - 130930 reads in 28884 unique sequences.
+Sample 79 - 154162 reads in 33603 unique sequences.
+Sample 80 - 217502 reads in 47850 unique sequences.
+Sample 81 - 177766 reads in 40739 unique sequences.
+Sample 82 - 79208 reads in 18665 unique sequences.
+Sample 83 - 192074 reads in 43584 unique sequences.
+Sample 84 - 161112 reads in 36376 unique sequences.
+Sample 85 - 233282 reads in 50761 unique sequences.
+Sample 86 - 230262 reads in 50095 unique sequences.
+Sample 87 - 196008 reads in 40981 unique sequences.
+Sample 88 - 182116 reads in 39681 unique sequences.
+Sample 89 - 223324 reads in 47498 unique sequences.
+Sample 90 - 183166 reads in 41563 unique sequences.
+Sample 91 - 175260 reads in 40399 unique sequences.
+Sample 92 - 166902 reads in 38312 unique sequences.
+Sample 93 - 97742 reads in 22405 unique sequences.
+Sample 94 - 161422 reads in 34437 unique sequences.
+Sample 95 - 195276 reads in 41984 unique sequences.
+Sample 96 - 156342 reads in 35922 unique sequences.
+Sample 97 - 212834 reads in 46501 unique sequences.
+Sample 98 - 71888 reads in 31048 unique sequences.
+Sample 99 - 91257 reads in 40534 unique sequences.
+Sample 100 - 80660 reads in 36804 unique sequences.
+Sample 101 - 82132 reads in 36938 unique sequences.
+Sample 102 - 100486 reads in 46192 unique sequences.
+Sample 103 - 85595 reads in 39615 unique sequences.
+Sample 104 - 127931 reads in 56634 unique sequences.
+Sample 105 - 115469 reads in 48881 unique sequences.
+Sample 106 - 35660 reads in 13789 unique sequences.
+Sample 107 - 32313 reads in 12990 unique sequences.
+Sample 108 - 17031 reads in 8238 unique sequences.
+
+   selfConsist step 2
+Summarise DADA2 results:
+
+dada-class: object describing DADA2 denoising results
+4394 sequence variants were inferred from 52665 input unique sequences.
+Key parameters: OMEGA_A = 1e-40, OMEGA_C = 1e-40, BAND_SIZE = 16
+
+Merge paired reads:
+
+149138 paired-reads (in 6489 unique pairings) successfully merged out of 183174 (in 8673 pairings) input.
+Duplicate sequences in merged output.
+163226 paired-reads (in 6666 unique pairings) successfully merged out of 180710 (in 8977 pairings) input.
+Duplicate sequences in merged output.
+144102 paired-reads (in 6759 unique pairings) successfully merged out of 183944 (in 9212 pairings) input.
+Duplicate sequences in merged output.
+127524 paired-reads (in 7277 unique pairings) successfully merged out of 152218 (in 9831 pairings) input.
+Duplicate sequences in merged output.
+125606 paired-reads (in 7905 unique pairings) successfully merged out of 137384 (in 10727 pairings) input.
+Duplicate sequences in merged output.
+141646 paired-reads (in 8179 unique pairings) successfully merged out of 157096 (in 11099 pairings) input.
+Duplicate sequences in merged output.
+120848 paired-reads (in 7009 unique pairings) successfully merged out of 133826 (in 9228 pairings) input.
+Duplicate sequences in merged output.
+82296 paired-reads (in 4963 unique pairings) successfully merged out of 90396 (in 6167 pairings) input.
+Duplicate sequences in merged output.
+150516 paired-reads (in 6095 unique pairings) successfully merged out of 185232 (in 7978 pairings) input.
+Duplicate sequences in merged output.
+174086 paired-reads (in 7789 unique pairings) successfully merged out of 188628 (in 10824 pairings) input.
+Duplicate sequences in merged output.
+151380 paired-reads (in 7557 unique pairings) successfully merged out of 176628 (in 10150 pairings) input.
+Duplicate sequences in merged output.
+165036 paired-reads (in 7641 unique pairings) successfully merged out of 186150 (in 10434 pairings) input.
+Duplicate sequences in merged output.
+116810 paired-reads (in 5781 unique pairings) successfully merged out of 127200 (in 7273 pairings) input.
+Duplicate sequences in merged output.
+158392 paired-reads (in 7173 unique pairings) successfully merged out of 172334 (in 9418 pairings) input.
+Duplicate sequences in merged output.
+138894 paired-reads (in 6077 unique pairings) successfully merged out of 152640 (in 7989 pairings) input.
+Duplicate sequences in merged output.
+141328 paired-reads (in 6800 unique pairings) successfully merged out of 153020 (in 8912 pairings) input.
+Duplicate sequences in merged output.
+192058 paired-reads (in 9580 unique pairings) successfully merged out of 207856 (in 13609 pairings) input.
+Duplicate sequences in merged output.
+126968 paired-reads (in 8117 unique pairings) successfully merged out of 139268 (in 10892 pairings) input.
+Duplicate sequences in merged output.
+124512 paired-reads (in 7190 unique pairings) successfully merged out of 134110 (in 9405 pairings) input.
+Duplicate sequences in merged output.
+85700 paired-reads (in 5320 unique pairings) successfully merged out of 92512 (in 6627 pairings) input.
+Duplicate sequences in merged output.
+155358 paired-reads (in 7745 unique pairings) successfully merged out of 167412 (in 10535 pairings) input.
+Duplicate sequences in merged output.
+179176 paired-reads (in 7980 unique pairings) successfully merged out of 216328 (in 11157 pairings) input.
+Duplicate sequences in merged output.
+167968 paired-reads (in 7447 unique pairings) successfully merged out of 190628 (in 10005 pairings) input.
+Duplicate sequences in merged output.
+179964 paired-reads (in 8029 unique pairings) successfully merged out of 218540 (in 11135 pairings) input.
+Duplicate sequences in merged output.
+151846 paired-reads (in 7461 unique pairings) successfully merged out of 169216 (in 9750 pairings) input.
+Duplicate sequences in merged output.
+203102 paired-reads (in 6440 unique pairings) successfully merged out of 224212 (in 8930 pairings) input.
+Duplicate sequences in merged output.
+109226 paired-reads (in 6026 unique pairings) successfully merged out of 117388 (in 7612 pairings) input.
+Duplicate sequences in merged output.
+168568 paired-reads (in 9049 unique pairings) successfully merged out of 181824 (in 12370 pairings) input.
+Duplicate sequences in merged output.
+167320 paired-reads (in 10278 unique pairings) successfully merged out of 177614 (in 14173 pairings) input.
+Duplicate sequences in merged output.
+175758 paired-reads (in 9343 unique pairings) successfully merged out of 192734 (in 12964 pairings) input.
+Duplicate sequences in merged output.
+194608 paired-reads (in 8493 unique pairings) successfully merged out of 203828 (in 11587 pairings) input.
+Duplicate sequences in merged output.
+135462 paired-reads (in 6378 unique pairings) successfully merged out of 154358 (in 8270 pairings) input.
+Duplicate sequences in merged output.
+135964 paired-reads (in 6660 unique pairings) successfully merged out of 154394 (in 8388 pairings) input.
+Duplicate sequences in merged output.
+229824 paired-reads (in 7834 unique pairings) successfully merged out of 243964 (in 10395 pairings) input.
+Duplicate sequences in merged output.
+169078 paired-reads (in 7359 unique pairings) successfully merged out of 189216 (in 9738 pairings) input.
+Duplicate sequences in merged output.
+207150 paired-reads (in 7948 unique pairings) successfully merged out of 223018 (in 10616 pairings) input.
+Duplicate sequences in merged output.
+136370 paired-reads (in 4924 unique pairings) successfully merged out of 148254 (in 6164 pairings) input.
+Duplicate sequences in merged output.
+111168 paired-reads (in 5868 unique pairings) successfully merged out of 117922 (in 7266 pairings) input.
+Duplicate sequences in merged output.
+107636 paired-reads (in 6302 unique pairings) successfully merged out of 113486 (in 7893 pairings) input.
+Duplicate sequences in merged output.
+155056 paired-reads (in 6587 unique pairings) successfully merged out of 168782 (in 8664 pairings) input.
+Duplicate sequences in merged output.
+170804 paired-reads (in 6275 unique pairings) successfully merged out of 179500 (in 8178 pairings) input.
+Duplicate sequences in merged output.
+185396 paired-reads (in 9495 unique pairings) successfully merged out of 193978 (in 12880 pairings) input.
+Duplicate sequences in merged output.
+166292 paired-reads (in 8662 unique pairings) successfully merged out of 174094 (in 11462 pairings) input.
+Duplicate sequences in merged output.
+151100 paired-reads (in 9002 unique pairings) successfully merged out of 160100 (in 12177 pairings) input.
+Duplicate sequences in merged output.
+148910 paired-reads (in 7922 unique pairings) successfully merged out of 157502 (in 10287 pairings) input.
+Duplicate sequences in merged output.
+233622 paired-reads (in 8138 unique pairings) successfully merged out of 246316 (in 11312 pairings) input.
+Duplicate sequences in merged output.
+164832 paired-reads (in 8205 unique pairings) successfully merged out of 174360 (in 10755 pairings) input.
+Duplicate sequences in merged output.
+138448 paired-reads (in 7976 unique pairings) successfully merged out of 146136 (in 10317 pairings) input.
+Duplicate sequences in merged output.
+155330 paired-reads (in 8754 unique pairings) successfully merged out of 176420 (in 11625 pairings) input.
+Duplicate sequences in merged output.
+158154 paired-reads (in 10479 unique pairings) successfully merged out of 176290 (in 14304 pairings) input.
+Duplicate sequences in merged output.
+136462 paired-reads (in 9423 unique pairings) successfully merged out of 144358 (in 12588 pairings) input.
+Duplicate sequences in merged output.
+113976 paired-reads (in 8397 unique pairings) successfully merged out of 120994 (in 11108 pairings) input.
+Duplicate sequences in merged output.
+159940 paired-reads (in 9407 unique pairings) successfully merged out of 169682 (in 12756 pairings) input.
+Duplicate sequences in merged output.
+26972 paired-reads (in 3286 unique pairings) successfully merged out of 28946 (in 3994 pairings) input.
+Duplicate sequences in merged output.
+142314 paired-reads (in 8427 unique pairings) successfully merged out of 151058 (in 11099 pairings) input.
+Duplicate sequences in merged output.
+82388 paired-reads (in 6685 unique pairings) successfully merged out of 87608 (in 8456 pairings) input.
+Duplicate sequences in merged output.
+159406 paired-reads (in 7169 unique pairings) successfully merged out of 169334 (in 9764 pairings) input.
+Duplicate sequences in merged output.
+37678 paired-reads (in 3119 unique pairings) successfully merged out of 40292 (in 3957 pairings) input.
+Duplicate sequences in merged output.
+149090 paired-reads (in 7370 unique pairings) successfully merged out of 157804 (in 10118 pairings) input.
+Duplicate sequences in merged output.
+172630 paired-reads (in 9568 unique pairings) successfully merged out of 183246 (in 13587 pairings) input.
+Duplicate sequences in merged output.
+236276 paired-reads (in 12873 unique pairings) successfully merged out of 251672 (in 18575 pairings) input.
+Duplicate sequences in merged output.
+184372 paired-reads (in 11041 unique pairings) successfully merged out of 196818 (in 16075 pairings) input.
+Duplicate sequences in merged output.
+107092 paired-reads (in 6581 unique pairings) successfully merged out of 113714 (in 8901 pairings) input.
+Duplicate sequences in merged output.
+59178 paired-reads (in 3886 unique pairings) successfully merged out of 63958 (in 4860 pairings) input.
+Duplicate sequences in merged output.
+129696 paired-reads (in 7202 unique pairings) successfully merged out of 137630 (in 9874 pairings) input.
+Duplicate sequences in merged output.
+171188 paired-reads (in 8593 unique pairings) successfully merged out of 184214 (in 11929 pairings) input.
+Duplicate sequences in merged output.
+167938 paired-reads (in 8358 unique pairings) successfully merged out of 178426 (in 11683 pairings) input.
+Duplicate sequences in merged output.
+166864 paired-reads (in 7453 unique pairings) successfully merged out of 175946 (in 10155 pairings) input.
+Duplicate sequences in merged output.
+169278 paired-reads (in 7837 unique pairings) successfully merged out of 179016 (in 11019 pairings) input.
+Duplicate sequences in merged output.
+165558 paired-reads (in 9355 unique pairings) successfully merged out of 179272 (in 13484 pairings) input.
+Duplicate sequences in merged output.
+163352 paired-reads (in 10064 unique pairings) successfully merged out of 174530 (in 14660 pairings) input.
+Duplicate sequences in merged output.
+149618 paired-reads (in 10018 unique pairings) successfully merged out of 160344 (in 14505 pairings) input.
+Duplicate sequences in merged output.
+172442 paired-reads (in 9626 unique pairings) successfully merged out of 182688 (in 13237 pairings) input.
+Duplicate sequences in merged output.
+177318 paired-reads (in 8178 unique pairings) successfully merged out of 189582 (in 11323 pairings) input.
+Duplicate sequences in merged output.
+220058 paired-reads (in 9681 unique pairings) successfully merged out of 232838 (in 13872 pairings) input.
+Duplicate sequences in merged output.
+161362 paired-reads (in 8098 unique pairings) successfully merged out of 170710 (in 11251 pairings) input.
+Duplicate sequences in merged output.
+12 paired-reads (in 6 unique pairings) successfully merged out of 22 (in 11 pairings) input.
+111350 paired-reads (in 6171 unique pairings) successfully merged out of 125704 (in 8080 pairings) input.
+Duplicate sequences in merged output.
+136800 paired-reads (in 7306 unique pairings) successfully merged out of 146194 (in 10020 pairings) input.
+Duplicate sequences in merged output.
+189640 paired-reads (in 10299 unique pairings) successfully merged out of 203608 (in 15551 pairings) input.
+Duplicate sequences in merged output.
+150738 paired-reads (in 10580 unique pairings) successfully merged out of 164012 (in 15802 pairings) input.
+Duplicate sequences in merged output.
+69614 paired-reads (in 5563 unique pairings) successfully merged out of 73866 (in 7286 pairings) input.
+Duplicate sequences in merged output.
+166904 paired-reads (in 10207 unique pairings) successfully merged out of 178866 (in 14994 pairings) input.
+Duplicate sequences in merged output.
+140778 paired-reads (in 8371 unique pairings) successfully merged out of 150798 (in 11774 pairings) input.
+Duplicate sequences in merged output.
+206090 paired-reads (in 10669 unique pairings) successfully merged out of 219678 (in 15365 pairings) input.
+Duplicate sequences in merged output.
+202082 paired-reads (in 9873 unique pairings) successfully merged out of 217684 (in 14074 pairings) input.
+Duplicate sequences in merged output.
+174136 paired-reads (in 9079 unique pairings) successfully merged out of 186468 (in 12466 pairings) input.
+Duplicate sequences in merged output.
+154120 paired-reads (in 8401 unique pairings) successfully merged out of 172972 (in 11699 pairings) input.
+Duplicate sequences in merged output.
+200786 paired-reads (in 10317 unique pairings) successfully merged out of 211688 (in 14279 pairings) input.
+Duplicate sequences in merged output.
+161468 paired-reads (in 10156 unique pairings) successfully merged out of 171410 (in 14185 pairings) input.
+Duplicate sequences in merged output.
+153836 paired-reads (in 10013 unique pairings) successfully merged out of 162784 (in 13874 pairings) input.
+Duplicate sequences in merged output.
+147036 paired-reads (in 9346 unique pairings) successfully merged out of 155998 (in 13116 pairings) input.
+Duplicate sequences in merged output.
+87452 paired-reads (in 5924 unique pairings) successfully merged out of 92292 (in 7710 pairings) input.
+Duplicate sequences in merged output.
+142274 paired-reads (in 7490 unique pairings) successfully merged out of 153726 (in 10146 pairings) input.
+Duplicate sequences in merged output.
+168900 paired-reads (in 8885 unique pairings) successfully merged out of 185150 (in 12286 pairings) input.
+Duplicate sequences in merged output.
+135920 paired-reads (in 8272 unique pairings) successfully merged out of 146860 (in 11399 pairings) input.
+Duplicate sequences in merged output.
+184124 paired-reads (in 9177 unique pairings) successfully merged out of 203926 (in 12304 pairings) input.
+Duplicate sequences in merged output.
+66267 paired-reads (in 7068 unique pairings) successfully merged out of 70479 (in 9790 pairings) input.
+Duplicate sequences in merged output.
+80876 paired-reads (in 9370 unique pairings) successfully merged out of 89829 (in 14339 pairings) input.
+Duplicate sequences in merged output.
+69353 paired-reads (in 8282 unique pairings) successfully merged out of 79264 (in 12054 pairings) input.
+Duplicate sequences in merged output.
+74393 paired-reads (in 8396 unique pairings) successfully merged out of 80433 (in 12862 pairings) input.
+Duplicate sequences in merged output.
+89742 paired-reads (in 10920 unique pairings) successfully merged out of 97692 (in 18061 pairings) input.
+Duplicate sequences in merged output.
+75954 paired-reads (in 8479 unique pairings) successfully merged out of 83926 (in 13104 pairings) input.
+Duplicate sequences in merged output.
+113232 paired-reads (in 11272 unique pairings) successfully merged out of 125235 (in 18029 pairings) input.
+Duplicate sequences in merged output.
+97655 paired-reads (in 8491 unique pairings) successfully merged out of 113609 (in 12650 pairings) input.
+Duplicate sequences in merged output.
+26058 paired-reads (in 134 unique pairings) successfully merged out of 35057 (in 193 pairings) input.
+Duplicate sequences in merged output.
+22405 paired-reads (in 158 unique pairings) successfully merged out of 31852 (in 371 pairings) input.
+Duplicate sequences in merged output.
+6762 paired-reads (in 91 unique pairings) successfully merged out of 16742 (in 204 pairings) input.
+Duplicate sequences in merged output.
+First 10 merged sequences:
+                                                                                                                                                                                                                                                          sequence
+1  TACGTAGGGGGCAAGCGTTGTCCGGATTTATTGGGCGTAAAGAGCTCGTAGGCGGCTTGGCAAGTCGGATGTGAAACCTCCAGGCTCAACCTGGAGTCGCCATTCGATACTGCCATGGCTAGTAGTTTGGTAGGGGACCACGGAATTCCTGGTGTAGCGGTGAAATGCGCAGATATCAGGAGGAACACCAGCGGCGAAGGCGGTGGTCTGGGCCAATACTGACGCTGAGGAGCGAAAGCGTGGGGAGCGAACAGG
+3    TACAGAGGGTGCAAGCGTTGTTCGGAATTATTGGGCGTAAAGGGTGCGTAGGCGGCGCGACAAGTCACCTGTGAAATCCCCAGGCTTAACCTGGGGCCTGCAGGCGAAACTGTCGTGCTGGAGTATGGGAGAGGTGCGTGGAATTCCCGGTGTAGCGGTGAAATGCGTAGATATCGGGAGGAACACCTGTGGCGAAAGCGGCGCACTGGACCATAACTGACGCTGATGCACGAAAGCTAGGGGAGCAAACAGG
+4                                 TACGTAGAAGACTAGTGTTATTCATCTTTAGTAGGTTTAAAGGGTACCTAGACGGTATGATTAGTCTTAAACAAGATACGATTATACTAGATGTTATATATGAGGAGGGGAGTATTTATGGAGTAGAGTTGAAATTCATTGATACCATAACGACTGGTAACGGCGAAAGCAACCTTTTATCTAATAACTGACGTTGAGGGACGAAGGCTCGGGTAGCGAACAGG
+5     CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCATTTTTTTTTAATGATACGGCGACCACCGAGATCTACACTGACGACATGGTTCTACAGTGCCAGCAGCCGCGGTAATCCAGACCAAGTCTCATTAGATACCCTGGTAGTCCAGACCAAGTCTCTGCTACCGTAGTATCGTCGTATCGGGTTTGGCGGGTTGGGGGTGAAAAAAAAAATGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+7     CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCATTTTTTTTTAATGATACGGCGACCACCGAGATCTACACTGACGACATGGTTCTACAGTGCCAGCAGCCGCGGTAATCCAGACCAAGTCTCATTAGAAACCCTGGTAGTCCAGACCAAGTCTCTGCTACCGTAGTATCGTCGTATCTCGTATGCCGTCTTCTGCTTGAAAAAAAAAAGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+9        CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCTTTTTTTTTTAATGATACGGCGACCACCGAGATCTACACTGACGACATGGTTCTACAGTGTCAGCAGCCGCGGTAATCCAGACCAAGTCTCTGCATTAGAAACCCCCGTAGTCCAGACCAAGTCTCTGCTACCGTAGTATCGTCGTATCTCGTATGCCGTCTTCTGCTTGAAAAAAAAAAGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+12       CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCTTTTTTTTTTAATGATACGGCGACCACCGAGATCTACACTGACGACATGGTTCTACAGTGTCAGCAGCCGCGGTAATCCAGACCAAGTCTCTGCATTAGATACCCCCGTAGTCCAGACCAAGTCTCTGCTACCGTAGTATCGTCGTATCTCGTATGCCGTCTTCTGCTTGAAAAAAAAAAGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+13   CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCATTTTTTTTTAATGATACGGCGACCACCGAGATCTACACTGACGACATGGTTCTACAGTGCCAGCAGCCGCGGTAATCCAGACCAAGTCTCATTAGATACCCGGGTAGTCCAGACCAAGTCTCTGCTACCGTAGTATCGTCGTATCGGGGTTTGCGGGGTGGGGGTGAAAAAAAAAAAGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+14  TACGGAGGGTGCAAGCGTTAATCGGAATTACTGGGCGTAAAGCGTGCGTAGGCGGTTATTTAAGTCAGATGTGAAAGCCCTGGGCTTAACCTGGGAACTGCATTTGATACTGGATGACTAGTAGTTGAGTAGAGGAGAGTGGAATTTCAGGTGTAGCGGTGAAATGCGTAGAGATCTGAAGGAACACCAGTGGCGAAGGCGGCTCTCTGGACTCAAACTGACGCTGAGGTACGAAAGCGTGGGTAGCAAACAGG
+15    CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCATTTTTTTTTAATGATACGGCGACCACCGAGATCTACACTGACGACATGGTTCTACAGTGCCAGCAGCCGCGGTAATCCAGACCAAGTCTCTGCATTAGATACCCCCGTAGTCCAGACCAAGTCTCTGCTACCGTAGTATCGTCGTATCTCGTATGCCGTCTTCTGCTTGAAAAAAAAAAGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+   abundance forward reverse nmatch nmismatch nindel prefer accept
+1       2122       2       2     12         0      1      1   TRUE
+3       1904       4       4     14         0      0      1   TRUE
+4       1890       1       5     43         0      1      1   TRUE
+5       1810    2741      23     15         0      0      2   TRUE
+7       1752     246      23     15         0      0      2   TRUE
+9       1494    2130      12     18         0      0      2   TRUE
+12      1404    1164      12     18         0      0      2   TRUE
+13      1328    2613      23     14         0      1      2   TRUE
+14      1310       3       6     13         0      1      1   TRUE
+15      1308    1164      23     15         0      0      2   TRUE
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+
+Sequence table dimensions:
+[1]    108 140337
+
+Inspect distribution of sequence lengths:
+
+  134   135   136   137   138   139   140   141   142   143   144   145   146 
+   46    31    33    28    18    22    20    66   184    38    56    60    82 
+  147   148   149   150   151   152   153   154   155   156   157   158   159 
+   40    18    27    13    77    34    66    17    25    12    34    34    18 
+  160   161   162   163   164   165   166   167   168   169   170   171   172 
+  107    30    21    26    84    47    97    40    29    21    46    55    43 
+  173   174   175   176   177   178   179   180   181   182   183   184   185 
+  113   102    38    23    28    16    31    30    38    31    43    95    47 
+  186   187   188   189   190   191   192   193   194   195   196   197   198 
+   44    29    52    55    59    73    62    66    69    42    37    59    25 
+  199   200   201   202   203   204   205   206   207   208   209   210   211 
+   53    75    24    56    56   155    63    66    42    60   132    66    37 
+  212   213   214   215   216   217   218   219   220   221   222   223   224 
+   41    53    50    60    46    55   118    61    80   158   283  1156   736 
+  225   226   227   228   229   230   231   232   233   234   235   236   237 
+   62    56   124    89    50    16    16    61    22    40    25    30    33 
+  238   239   240   241   242   243   244   245   246   247   248   249   250 
+   14    66    28    38    30    34    37    21    65    69   526   801   241 
+  251   252   253   254   255   256   258   260 
+  857  1794 99187 26130  2916    23     1     1 
+
+Remove sequences differing from excected length by more than 5 bp:
+
+Remove chimeras:
+Identified 77420 bimeras out of 132476 input sequences.
+
+Sequence table dimensions after chimera removal:
+[1]   108 55056
+
+What proportions passed through chimera check?
+[1] 0.8995637
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+Duplicate sequences detected and merged.
+
+Track reads through the pipeline:
+                  Merged_sample_name       Sample_name
+AD001-E1Fract1_S1  AD001-E1Fract1_S1 AD001-E1Fract1_S1
+AD002-E1Fract2_S2  AD002-E1Fract2_S2 AD002-E1Fract2_S2
+AD003-E1Fract3_S3  AD003-E1Fract3_S3 AD003-E1Fract3_S3
+AD004-E1Fract4_S4  AD004-E1Fract4_S4 AD004-E1Fract4_S4
+AD005-E1Fract5_S5  AD005-E1Fract5_S5 AD005-E1Fract5_S5
+AD006-E1Fract6_S6  AD006-E1Fract6_S6 AD006-E1Fract6_S6
+                                                        Read1_file  Input
+AD001-E1Fract1_S1 AD001-E1Fract1_S1_L001_R1_001_noPrimers.fastq.gz 203072
+AD002-E1Fract2_S2 AD002-E1Fract2_S2_L001_R1_001_noPrimers.fastq.gz 193516
+AD003-E1Fract3_S3 AD003-E1Fract3_S3_L001_R1_001_noPrimers.fastq.gz 199058
+AD004-E1Fract4_S4 AD004-E1Fract4_S4_L001_R1_001_noPrimers.fastq.gz 165730
+AD005-E1Fract5_S5 AD005-E1Fract5_S5_L001_R1_001_noPrimers.fastq.gz 149802
+AD006-E1Fract6_S6 AD006-E1Fract6_S6_L001_R1_001_noPrimers.fastq.gz 170172
+                  Filtered Denoised Merged Tabled Nonchim
+AD001-E1Fract1_S1   189480   185836 149138 141242  124056
+AD002-E1Fract2_S2   186934   183498 163226 152360  143686
+AD003-E1Fract3_S3   189620   186576 144102 128744  117850
+AD004-E1Fract4_S4   159410   155874 127524 114052  101274
+AD005-E1Fract5_S5   146232   141792 125606 119508  103074
+AD006-E1Fract6_S6   165784   161382 141646 136638  121854
+
+Assign taxonomy:
+Assigning SILVA taxonomy:
+Done
+Assigning GTDB taxonomy:
+Done
+
+Evaluate mock community:
+No mock community identifier supplied
+	Command being timed: "Rscript --vanilla /proj/Peat_soil/Amplicon_SIP_Nov_2024/DNA_SIP/Analysis/16S/01_DADA2_16S_merge_V9.2.R ../ pseudo ~/proj/Resources/"
+	User time (seconds): 1979670.55
+	System time (seconds): 27882.63
+	Percent of CPU this job got: 4337%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 12:51:23
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 31092420
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 166
+	Minor (reclaiming a frame) page faults: 171431260
+	Voluntary context switches: 184616815
+	Involuntary context switches: 3078961287
+	Swaps: 0
+	File system inputs: 87184
+	File system outputs: 2977200
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

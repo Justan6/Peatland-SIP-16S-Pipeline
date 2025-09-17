@@ -1,0 +1,1769 @@
+---
+title: "qSIP2 Analysis Script: ¹³C-CH₄ SIP in Peatland Microcosms"
+author: "Justus Nweze"
+date: "2025-07-28"
+email: "justus.nweze@unn.edu.ng"
+editor_options: 
+  chunk_output_type: console
+---
+
+# Purpose of the Script
+
+This script performs a quantitative Stable Isotope Probing (qSIP) analysis using the qSIP2 R package to estimate the atom fraction of ¹³C incorporation by microbial taxa in a peatland microcosm experiment. Unlike differential abundance methods (e.g., ANCOM-BC or DESeq2) that identify taxa enriched in heavy DNA, qSIP2 models the buoyant density shift of microbial DNA across the full gradient to quantify how much ¹³C each taxon incorporated.
+
+# Biological Questions Addressed
+
+- **What is the atom fraction of ¹³C incorporation for each microbial taxon?**  
+  A continuous measure of how much ¹³C a taxon used.
+
+- **Which taxa incorporated the most ¹³C?**  
+  Ranks taxa by incorporation, not just presence in heavy fractions.
+
+- **Does NH₄⁺ amendment affect the amount of ¹³C incorporated by methanotrophs?**  
+  Compare mean atom fraction between CH₄ and CH₄+NH₄Cl treatments.
+
+- **Are there taxa with high incorporation but low abundance (or vice versa)?**  
+  Reveals functionally important but rare taxa.
+
+```{r load libraries}
+#*********************************************************************************************************
+#**  STEP 1: Load Packages **
+# --------------------------------------------------------------------------------------------------------
+# Install (if needed) and load all required libraries for data handling, plotting, and qSIP2 operations.
+#**********************************************************************************************************
+# Install qSIP2 if not already installed
+# BiocManager::install("benjjneb/qSIP2", dependencies = TRUE)
+
+library(qSIP2)      # Core package for qSIP analysis
+library(dplyr)      # Data manipulation
+library(tidyr)      # Data reshaping
+library(readr)      # Read CSV/TSV files
+library(tibble)     # Modern data frames
+library(ggplot2)
+library(ggvenn)
+library(pheatmap)
+library(ggpubr)
+
+# Create output folder
+# Ensure output folder exists
+dir.create("qSIP_EAF_plot", showWarnings = FALSE)
+```
+
+
+```{r prepare sample data}
+# Set theme for plots (optional)
+ggplot2::theme_set(ggplot2::theme_bw(base_family = "sans"))
+#******************************************************************************************************************************************************************
+#**  STEP 2: Prepare Sample Metadata **
+# ----------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Load and clean fraction-level metadata (sample_data.csv), ensuring all required columns for qSIP2 analysis are present. 
+# This includes density, gradient position, and total abundance. Low-density fractions (<1.55 g/mL) are excluded to improve robustness.
+# The sample_data.csv file should have columns for sample_id,	source_mat_id, gradient_position,	gradient_pos_density,	gradient_pos_amt,	gradient_pos_amt_STD,	
+# gradient_pos_amt_n,	gradient_pos_amt_SE,	gradient_pos_rel_amt,	gradient_pos_rel_amt.min,	gradient_pos_rel_amt.max.
+#******************************************************************************************************************************************************************
+#-----------------------------------------------------------------------------------
+# a. Read sample data
+#-----------------------------------------------------------------------------------
+sample_df <- read_csv("Metadata/sample_data.csv")
+
+# Inspect structure
+glimpse(sample_df)
+# head(sample_df)
+
+# -----------------------------------------------------------------------------
+# b. Ensure required columns for qSIP2 are present and correctly named
+# Required: sample_id, source_mat_id, gradient_position, gradient_pos_density, gradient_pos_amt
+# -----------------------------------------------------------------------------
+
+# Check for required columns (using qSIP2 standard names)
+required_sample_cols <- c(
+  "sample_id", 
+  "source_mat_id", 
+  "gradient_position", 
+  "gradient_pos_density", 
+  "gradient_pos_amt"
+)
+
+missing_cols <- setdiff(required_sample_cols, colnames(sample_df))
+if (length(missing_cols) > 0) {
+  stop("❌ Missing required columns in sample_data.csv: ", paste(missing_cols, collapse = ", "))
+}
+
+# -----------------------------------------------------------------------------
+# c. Clean and convert data types
+# -----------------------------------------------------------------------------
+
+sample_df <- sample_df %>%
+  mutate(
+    # Ensure IDs are character
+    sample_id = as.character(sample_id),
+    source_mat_id = as.character(source_mat_id),
+    
+    # gradient_position must be integer (1 = heaviest, 12 = lightest)
+    gradient_position = as.integer(gradient_position),
+    
+    # Density and abundance must be numeric
+    gradient_pos_density = as.numeric(gradient_pos_density),
+    gradient_pos_amt = as.numeric(gradient_pos_amt)
+  ) %>%
+  # Remove rows with invalid density or abundance
+  filter(!is.na(gradient_pos_density), !is.na(gradient_pos_amt)) %>%
+  # Sort by source and gradient position for readability
+  arrange(source_mat_id, gradient_position)
+
+# -----------------------------------------------------------------------------
+# d. Filter out low-density fractions (<1.55 g/mL) before running qSIP
+# -----------------------------------------------------------------------------
+sample_df <- sample_df %>%
+  filter(gradient_pos_density >= 1.55)
+
+# View the filtered data
+#View(sample_df)
+
+# -----------------------------------------------------------------------------
+# e. Convert to qSIP2 sample object
+# Note: gradient_pos_rel_amt will be calculated automatically from gradient_pos_amt
+# -----------------------------------------------------------------------------
+sample_obj <- qsip_sample_data(
+  sample_df,
+  sample_id = "sample_id",
+  source_mat_id = "source_mat_id",
+  gradient_position = "gradient_position",
+  gradient_pos_density = "gradient_pos_density",
+  gradient_pos_amt = "gradient_pos_amt",
+  gradient_pos_rel_amt = "gradient_pos_rel_amt" 
+)
+
+class(sample_obj)
+
+# Confirm object created successfully
+print("✅ sample_obj created successfully")
+print(sample_obj)
+
+# Optional: View the cleaned data
+# get_dataframe(sample_obj) %>% head()
+
+```
+
+
+
+```{r prepare source data}
+#************************************************************************************************************************************************
+#** STEP 3: Prepare Source Metadata **
+# -----------------------------------------------------------------------------
+# Load metadata for each incubation (source_data.csv), capturing isotopic labeling, treatment groups, volume, and timepoint. 
+# Merge in total abundance from the sample data to complete the object.
+# Source data: One row per source (e.g., E1, F1, I1, J1).
+# Contains metadata about the incubation (isotope, treatment, volume, etc.)
+#************************************************************************************************************************************************
+
+# Read sample_data (if not already in environment)
+# sample_df <- read_csv("Metadata/sample_data.csv")
+# ------------------------------------------------------------------------------
+# a. Calculate total_abundance per source if not calculated already
+# ------------------------------------------------------------------------------
+source_totals <- sample_df %>%
+  group_by(source_mat_id) %>%
+  summarise(
+    total_abundance = sum(gradient_pos_amt, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# View result
+print("Total 16S gene copies per source:")
+print(source_totals)
+
+# -----------------------------------------------------------------------------
+# b. Read source data
+# -----------------------------------------------------------------------------
+source_df <- read_csv("Metadata/source_data.csv")
+
+# Inspect structure
+glimpse(source_df)
+
+# Ensure required columns are present
+required_source_cols <- c("source_mat_id", "isotope", "isotopolog", "volume", "timepoint")
+missing_cols <- setdiff(required_source_cols, colnames(source_df))
+if (length(missing_cols) > 0) {
+  stop("❌ Missing required columns in source_data.csv: ", paste(missing_cols, collapse = ", "))
+}
+
+# Merge total_abundance into source_df by source_mat_id
+source_df <- source_df %>%
+  left_join(source_totals, by = "source_mat_id")
+
+# -----------------------------------------------------------------------------
+# c. Convert critical columns to correct types
+# -----------------------------------------------------------------------------
+source_df <- source_df %>%
+  mutate(
+    source_mat_id = as.character(source_mat_id),
+    isotope = as.character(isotope),
+    isotopolog = as.character(isotopolog),
+    total_abundance = as.numeric(total_abundance),  # Now correctly filled
+    volume = as.numeric(volume),
+    timepoint = as.numeric(timepoint)
+  )
+
+# -----------------------------------------------------------------------------
+# d. Convert to qSIP2 source object
+# -----------------------------------------------------------------------------
+source_obj <- qsip_source_data(
+  source_df,
+  source_mat_id = "source_mat_id",
+  isotope = "isotope",
+  isotopolog = "isotopolog"
+)
+
+class(source_obj)
+## Structure of `qsip_source_data` 
+# While this object is not meant to be inspected or worked with outside of `qSIP2` functions, a quick `glimpse()` can show the structure of it.
+
+glimpse(source_obj)
+
+# Confirm object created
+print("✅ source_obj created successfully")
+print(source_obj)
+
+
+```
+
+
+
+```{r preate feature data}
+#************************************************************************************************************************************************
+#** STEP 4: Prepare Feature (ASV) Data **
+# -----------------------------------------------------------------------------
+# Feature data: ASV abundance matrix (rows = ASVs, columns = sample_id)
+# This file is assumed to be in wide format: one column per fraction
+# Import the ASV count matrix, filter to include only valid sample IDs, and convert to a qSIP2-compatible feature object.
+#************************************************************************************************************************************************
+
+# ------------------------------------------------------------------------------
+# After filtering sample_df by density
+# ------------------------------------------------------------------------------
+keep_sample_ids <- sample_df$sample_id
+
+# ------------------------------------------------------------------------------
+# Read feature data
+# ------------------------------------------------------------------------------
+feature_raw <- read_tsv("DADA2_pseudo/Peatland_SIP_seqtab_seq_prev_filt.tsv")
+
+
+# ------------------------------------------------------------------------------
+# Identify which sample IDs from 'keep_sample_ids' actually exist in the feature table
+# This step avoids errors from trying to select non-existent columns
+# ------------------------------------------------------------------------------
+matched_ids <- keep_sample_ids[keep_sample_ids %in% colnames(feature_raw)]
+
+# ------------------------------------------------------------------------------
+# Subset the feature table to retain only:
+# 1. The ASV column (containing sequence variant identifiers)
+# 2. The matched sample columns that were found in the feature table
+# This results in a clean feature table with only the relevant and valid sample data
+# ------------------------------------------------------------------------------
+feature_clean <- feature_raw %>%
+  select(ASV, all_of(matched_ids))
+
+
+feature_obj <- qsip_feature_data(feature_clean,
+  feature_id = "ASV", type = "counts")
+
+class(feature_obj)
+
+
+
+# Optional: Save cleaned version
+# write.csv(asv_table, "Peatland_SIP_seqtab_cleaned.csv")
+
+print("✅ ASV count table (feature_data) loaded successfully")
+print(source_obj)
+```
+
+
+
+```{r load taxonomy data}
+#*******************************************************************************
+#** STEP 5: Add Taxonomic Annotations **
+# -----------------------------------------------------------------------------
+# This file contains the taxonomic classification for each ASV
+# Columns typically include: ASV, Kingdom, Phylum, Class, Order, Family, Genus
+#*******************************************************************************
+
+# ------------------------------------------------------------------------------
+# a. Read taxonomy table (tab-separated, from DADA2 or other classifier output)
+# ------------------------------------------------------------------------------
+taxa_df <- read_tsv("DADA2_pseudo/Peatland_SIP_taxa_silva_seq_prev_filt.tsv")
+
+# ------------------------------------------------------------------------------
+# b. Convert to a tibble with 'feature_id' column to match structure in `feature_obj`
+# ------------------------------------------------------------------------------
+taxonomy_tbl <- taxa_df %>%
+  rename(feature_id = ASV) %>%
+  as_tibble()
+
+
+# ------------------------------------------------------------------------------
+# c. Attach taxonomy to the feature object
+# This adds taxonomic annotations to the @taxonomy slot
+# ------------------------------------------------------------------------------
+feature_obj <- add_taxonomy(feature_obj, taxonomy_tbl, feature_id = "feature_id")
+
+print("✅ Taxonomy data successfully added to feature_obj")
+
+```
+
+
+
+```{r merge the objects}
+#************************************************************************************************************************************************
+#**  STEP 6: Create Unified qSIP Object **
+# --------------------------------------------------------------------------------------------------------------------------------------------
+# Combine sample, source, and feature data into a unified qsip_data object. This is the foundation for all downstream qSIP2 analyses.
+#************************************************************************************************************************************************
+# -----------------------------------------------------------------------------
+# a. Ensure you have the objects from Step 1 
+#    source_obj, sample_obj, asv_table
+# -----------------------------------------------------------------------------
+
+# If not already loaded, run the previous script first
+# Otherwise, confirm objects exist:
+ls(pattern = "obj|table")
+
+# -----------------------------------------------------------------------------
+# b. Create a qsip_data object (combines source + sample)
+# -----------------------------------------------------------------------------
+
+# Combine source and sample data into one object
+Peatland_qsip_object <- qsip_data(
+  source_data = source_obj,
+  sample_data = sample_obj,
+  feature_data = feature_obj
+)
+
+class(Peatland_qsip_object)
+print("✅ Peatland_qsip_object created")
+print(Peatland_qsip_object)
+
+#************************************************************************************************************************************************
+#** STEP 6.5: Diagnostic Plot – Sample Density Curves by Isotope **
+#------------------------------------------------------------------------------------------------------------------------------------------------
+# Visualize normalized DNA abundance profiles across all gradient fractions, grouped by isotope treatment (¹²C vs ¹³C).
+# This helps confirm successful ¹³C labeling and proper gradient separation.
+# The WAD (Weighted Average Density) is shown as vertical lines to highlight shifts.
+#************************************************************************************************************************************************
+
+# Generate the plot
+sample_curve_plot <- plot_sample_curves(Peatland_qsip_object,
+                                        title = "Normalized Density Curves by Isotope",
+                                        facet_by = "isotope",
+                                        show_wad = TRUE)
+
+# Print to console (to view it)
+print(sample_curve_plot)
+
+# Export as PDF
+ggsave("qSIP_EAF_plot/0a.Sample_density_curves_by_isotope.pdf",
+       plot = sample_curve_plot,
+       width = 10, height = 6, device = "pdf")
+
+# Export as high-resolution SVG
+ggsave("qSIP_EAF_plot/0a.Sample_density_curves_by_isotope.svg",
+       plot = sample_curve_plot,
+       width = 10, height = 6, dpi = 300, device = "svg")
+
+print("✅ Sample density curves exported to 'qSIP_EAF_plot/' directory")
+#************************************************************************************************************************************************
+#** STEP 6.6: Outlier Detection Based on WAD **
+#************************************************************************************************************************************************
+outlier_plot <- plot_density_outliers(Peatland_qsip_object)
+print(outlier_plot)
+
+ggsave("qSIP_EAF_plot/0b.Density_outliers.svg", 
+       plot = outlier_plot, width = 8, height = 5, dpi = 300)
+
+ggsave("qSIP_EAF_plot/0b.Density_outliers.pdf", 
+       plot = outlier_plot, width = 8, height = 5, dpi = 300)
+```
+
+
+
+```{r filter ASV}
+#************************************************************************************************************************************************
+#** STEP 7: Filter ASVs by Detection **
+# -----------------------------------------------------------------------------
+# Filter ASVs based on abundance and distribution
+# Apply stringent filters to retain ASVs detected in multiple labeled and unlabeled sources and in a sufficient number of density fractions. 
+# This reduces false positives and focuses on robust incorporators.
+#************************************************************************************************************************************************
+
+# Define labeled and unlabeled source groups
+labeled_sources_E <- c("E1", "E2", "E3", "E4")
+unlabeled_sources_E <- c("F1")
+
+labeled_sources_I <- c("I1", "I2", "I3", "I4")
+unlabeled_sources_I <- c("J1")
+
+# Run feature filtering
+# Keep ASVs that:
+# - Are present in ≥ 4 labeled sources
+# - Are present in ≥ 1 unlabeled source
+# - Appear in ≥ 5 fractions in labeled sources
+# - Appear in ≥ 5 fractions in unlabeled sources
+
+filtered_qsip_E <- run_feature_filter(
+  Peatland_qsip_object,
+  labeled_source_mat_ids = labeled_sources_E,
+  unlabeled_source_mat_ids = unlabeled_sources_E,
+  min_labeled_sources = 4,
+  min_unlabeled_sources = 1,
+  min_labeled_fractions = 6,
+  min_unlabeled_fractions = 6
+)
+
+filtered_qsip_I <- run_feature_filter(
+  Peatland_qsip_object,
+  labeled_source_mat_ids = labeled_sources_I,
+  unlabeled_source_mat_ids = unlabeled_sources_I,
+  min_labeled_sources = 4,
+  min_unlabeled_sources = 1,
+  min_labeled_fractions = 6,
+  min_unlabeled_fractions = 6
+)
+
+print("✅ Feature filtering complete")
+# After running run_feature_filter()
+
+
+# Get number of ASVs that passed filtering
+# If you ran E-group
+passed_E <- get_feature_ids(filtered_qsip_E, filtered = TRUE)
+print(paste("E-group:", length(passed_E), "ASVs passed"))
+
+passed_I <- get_feature_ids(filtered_qsip_I, filtered = TRUE)
+print(paste("I-group:", length(passed_I), "ASVs passed"))
+
+
+```
+
+
+
+```{r resampling}
+#************************************************************************************************************************************************
+#** STEP 8: Resample to Estimate Uncertainty **
+# -----------------------------------------------------------------------------
+# Perform bootstrap resampling (n = 1000) to quantify uncertainty in EAF estimates. 
+# Check for ASVs with low resampling success (<900/1000) and flag them for interpretation caution.
+#************************************************************************************************************************************************
+
+# Perform bootstrap resampling (n = 1000)
+resampled_E <- run_resampling(filtered_qsip_E, resamples = 1000, with_seed = 123, progress = FALSE)
+
+resampled_I <- run_resampling(filtered_qsip_I, resamples = 1000, with_seed = 123, progress = FALSE)
+
+print("✅ Resampling complete")
+
+
+# Check resampling success
+resample_counts_E <- get_resample_counts(resampled_E)
+resample_counts_I <- get_resample_counts(resampled_I)
+
+# View ASVs with low success (<900 resamples)
+low_success_E <- resample_counts_E %>%
+  filter(labeled_resamples < 900 | unlabeled_resamples < 900)
+
+low_success_I <- resample_counts_I %>%
+  filter(labeled_resamples < 900 | unlabeled_resamples < 900)
+
+print(paste("E-group:", nrow(low_success_E), "ASVs with low resampling success"))
+print(paste("I-group:", nrow(low_success_I), "ASVs with low resampling success"))
+```
+
+
+
+```{r Compute EAF}
+#************************************************************************************************************************************************
+#** STEP 9: Compute Excess Atom Fraction (EAF)  **
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+# Calculate taxon-specific EAFs using density shifts between labeled and unlabeled samples. This is the core metric of carbon incorporation.
+#************************************************************************************************************************************************
+
+#--------------------------------------
+# a. Run EAF calculations
+#--------------------------------------
+eaf_E <- run_EAF_calculations(resampled_E)
+eaf_I <- run_EAF_calculations(resampled_I)
+
+print("✅ EAF calculations complete")
+
+# -----------------------------------------------------------------------------
+# b. Combine into a multi-object list for comparison
+# -----------------------------------------------------------------------------
+qsip_list <- list("CH4" = eaf_E, "CH4_NH4Cl" = eaf_I)
+is_qsip_data_list(qsip_list) # Validate
+
+# -----------------------------------------------------------------------------
+# c. Plot EAF values
+# -----------------------------------------------------------------------------
+
+# Plot top 50 ASVs by median EAF
+Top_50_plot_EAF <- plot_EAF_values(qsip_list, top = 50, error = "ribbon") +
+  labs(title = "13C Incorporation: CH4 vs CH4 + NH4Cl", 
+       subtitle = "Top 50 ASVs by median Excess Atom Fraction") +
+  theme(legend.position = "bottom")
+
+
+# Save as SVG
+ggsave("qSIP_EAF_plot/1.Top_50_ASVs_by_median_EAF.svg",
+       plot = Top_50_plot_EAF,
+       width = 6, height = 12, dpi = 300, device = "svg")
+
+# Save as PDF
+ggsave("qSIP_EAF_plot/1.Top_50_ASVs_by_median_EAF.pdf",
+       plot = Top_50_plot_EAF,
+       width = 6, height = 12, device = "pdf")
+# -----------------------------------------------------------------------------
+# d. Extract results as dataframe
+# Summarize & Visualize EAFs: Aggregate EAFs across treatments and rank ASVs by incorporation. 
+# Generate visualizations including bar plots, boxplots, and density distribution curves.
+# -----------------------------------------------------------------------------
+
+# Get EAF summary
+eaf_summary <- summarize_EAF_values(qsip_list, confidence = 0.9)
+
+# Inspect column names
+colnames(eaf_summary)
+
+# Common median column names:
+# - mean_resampled_EAF
+# - median_resampled_EAF
+# - EAF_median
+# - median_EAF
+
+# Try to identify the correct one
+eaf_results <- eaf_summary %>%
+  arrange(desc(mean_resampled_EAF))  # Most common
+
+# If error, try:
+# arrange(desc(median_resampled_EAF))
+# or
+# arrange(desc(median_EAF))
+
+# View top 10
+head(eaf_results, 10)
+
+# Save
+write.csv(eaf_results, "qSIP_EAF_plot/EAF_results.csv", row.names = FALSE)
+
+# =============================================================================
+# e. Annotate EAF Results with Taxonomy
+# Merge EAF results with taxonomic identities and derive genus-level summaries. 
+# Handle unclassified genera by appending family-level context to preserve ecological meaning.
+# =============================================================================
+
+# i: Ensure eaf_results has 'feature_id' as a column (not rowname)
+if (!"feature_id" %in% colnames(eaf_results)) {
+  eaf_results <- eaf_results %>%
+    tibble::rownames_to_column("feature_id")
+} else {
+  eaf_results <- eaf_results %>%
+    as_tibble()
+}
+
+# ii: Confirm your taxonomy table is ready
+# You already created:
+# taxonomy_tbl <- taxa_df %>% rename(feature_id = ASV) %>% as_tibble()
+
+# If you haven't saved it, do:
+taxonomy_tbl <- taxa_df %>%
+  rename(feature_id = ASV) %>%
+  as_tibble()
+
+# iii: Merge EAF results with taxonomy
+eaf_with_taxa <- eaf_results %>%
+  left_join(taxonomy_tbl, by = "feature_id")
+
+# iv: Identify the correct EAF median column and sort
+# Common options:
+median_col <- "mean_resampled_EAF"  # Most common in qSIP2 output
+
+if (!median_col %in% colnames(eaf_with_taxa)) {
+  # Try alternatives
+  median_col <- c("median_resampled_EAF", "median_EAF", "EAF_median")[1] %>%
+    {.[. %in% colnames(eaf_with_taxa)]}
+  
+  if (length(median_col) == 0) {
+    stop("Could not find EAF median column in eaf_with_taxa")
+  }
+}
+
+# Sort by highest incorporation
+eaf_with_taxa <- eaf_with_taxa %>%
+  arrange(desc(!!sym(median_col))) %>%
+  mutate(
+    Genus_clean = case_when(
+      Genus == "Unclassified_Methylomonadaceae" ~ "Unclassified_Methylomonadaceae",
+      Genus == "Unclassified_Bradyrhizobiaceae" ~ "Unclassified_Bradyrhizobiaceae",
+      Genus == "Unclassified" ~ paste0("Unclassified_", Family),
+      TRUE ~ Genus
+    ),
+    Genus_plot = ifelse(is.na(Genus_clean), "Unclassified", Genus_clean)
+  )
+
+
+# v: View top 10 ¹³C-incorporating taxa
+print("Top 10 ¹³C-incorporating taxa:")
+head(eaf_with_taxa, 10)
+
+# vi: Save results
+write.csv(eaf_with_taxa, "qSIP_EAF_plot/EAF_results_with_taxonomy.csv", row.names = FALSE)
+
+print("✅ EAF results with taxonomy saved to 'EAF_results_with_taxonomy.csv'")
+```
+
+
+
+```{r WAD Lines to Density Plots}
+#************************************************************************************************************************************************
+#** STEP 10: Density Gradient Profiles of Top Methanotrophs ASVs (with WAD Lines) **
+# -------------------------------------------------------------------------------------------------------
+# This section visualizes the weighted average density (WAD) shifts for the top ¹³C-incorporating methanotrophs in CH₄ and CH₄ + NH₄Cl treatments. 
+# By plotting buoyant density distributions across gradient fractions for selected ASVs, it highlights isotopic enrichment patterns and the degree of DNA labeling in key methane-oxidizing taxa.
+# WAD lines (dashed = ¹²C, solid = ¹³C) are now added to clearly show the enriched area.
+#************************************************************************************************************************************************
+
+#------------------------------------------------------------------
+# a. Pick top ASVs from EAF_results_with_taxonomy.csv
+#------------------------------------------------------------------
+top_asvs_eaf_E <- c("Seq_1", "Seq_9",  "Seq_38", "Seq_2", "Seq_77",  "Seq_13", "Seq_649", "Seq_16", "Seq_209", "Seq_7")
+
+# Extract WAD values and join with isotope via source_mat_id
+wad_data_E <- eaf_E@wads %>%
+  dplyr::select(feature_id, source_mat_id, WAD) %>%
+  # Join with isotope info from source_data (not sample_data)
+  left_join(
+    eaf_E@source_data@data %>% dplyr::select(source_mat_id, isotope),
+    by = "source_mat_id"
+  ) %>%
+  # Group by ASV and isotope, compute mean WAD
+  group_by(feature_id, isotope) %>%
+  summarise(WAD = mean(WAD, na.rm = TRUE), .groups = "drop") %>%
+  # Reshape: WAD_12C and WAD_13C columns
+  pivot_wider(names_from = isotope, values_from = WAD, names_prefix = "WAD_")
+
+# View result
+print(wad_data_E)
+
+# Join taxonomy with wad_data_E
+wad_data_E_with_taxa <- wad_data_E %>%
+  left_join(taxa_df, by = c("feature_id" = "ASV")) %>%
+  select(feature_id, Kingdom, Phylum, Class, Order, Family, Genus, WAD_12C, WAD_13C, .after = feature_id)
+
+# Export
+write.csv(wad_data_E_with_taxa, 
+          file = "qSIP_EAF_plot/wad_data_E_with_taxonomy.csv", 
+          row.names = FALSE)
+
+print("✅ wad_data_IEwith taxonomy exported")
+# Export wad_data_E to CSV
+
+
+
+# Generate the base plot
+p_curves_eaf_E <- plot_feature_curves(eaf_E, top_asvs_eaf_E) +
+  facet_wrap(~ factor(feature_id, levels = top_asvs_eaf_E), nrow = 5, scales = "free") +
+  labs(title = "Density Distribution of Top Methanotrophs (CH₄)")
+
+# Add WAD lines: 12C (dashed blue), 13C (solid red)
+p_curves_eaf_E_with_wad <- p_curves_eaf_E +
+  geom_vline(data = wad_data_E, aes(xintercept = WAD_12C), 
+             linetype = "dashed", linewidth = 0.8, color = "blue", alpha = 0.8) +
+  geom_vline(data = wad_data_E, aes(xintercept = WAD_13C), 
+             linetype = "solid", linewidth = 0.8, color = "red", alpha = 0.8) +
+  # Optional: annotate WAD lines
+  annotate("text", x = 1.74, y = 0.005, label = "WAD_12C", color = "blue", 
+           size = 3, hjust = 1, fontface = "italic") +
+  annotate("text", x = 1.74, y = 0.0045, label = "WAD_13C", color = "red", 
+           size = 3, hjust = 1, fontface = "italic")
+
+# Print and save
+print(p_curves_eaf_E_with_wad)
+
+ggsave("qSIP_EAF_plot/2.WAD_Density_Distribution_CH4.pdf",
+       plot = p_curves_eaf_E_with_wad,
+       width = 12, height = 25, device = "pdf")
+
+ggsave("qSIP_EAF_plot/2.WAD_Density_Distribution_CH4.svg",
+       plot = p_curves_eaf_E_with_wad,
+       width = 12, height = 25, dpi = 300, device = "svg")
+
+#------------------------------------------------------------------
+# b. Pick top ASVs in eaf_I for CH4 + NH4Cl treatment
+#------------------------------------------------------------------
+top_asvs_eaf_I <- c("Seq_2", "Seq_13", "Seq_791", "Seq_1", "Seq_209", "Seq_9", "Seq_7", "Seq_16", "Seq_649", "Seq_1047")
+
+# Extract WAD values for eaf_I
+# Extract WAD values and join with isotope via source_mat_id
+wad_data_I <- eaf_I@wads %>%
+  dplyr::select(feature_id, source_mat_id, WAD) %>%
+  # Join with isotope info from source_data (not sample_data)
+  left_join(
+    eaf_I@source_data@data %>% dplyr::select(source_mat_id, isotope),
+    by = "source_mat_id"
+  ) %>%
+  # Group by ASV and isotope, compute mean WAD
+  group_by(feature_id, isotope) %>%
+  summarise(WAD = mean(WAD, na.rm = TRUE), .groups = "drop") %>%
+  # Reshape: WAD_12C and WAD_13C columns
+  pivot_wider(names_from = isotope, values_from = WAD, names_prefix = "WAD_")
+
+# View result
+print(wad_data_I)
+
+# Join taxonomy with wad_data_I
+wad_data_I_with_taxa <- wad_data_I %>%
+  left_join(taxa_df, by = c("feature_id" = "ASV")) %>%
+  select(feature_id, Kingdom, Phylum, Class, Order, Family, Genus, WAD_12C, WAD_13C, .after = feature_id)
+
+# Export
+write.csv(wad_data_I_with_taxa, 
+          file = "qSIP_EAF_plot/wad_data_I_with_taxonomy.csv", 
+          row.names = FALSE)
+
+print("✅ wad_data_I with taxonomy exported")
+# Export wad_data_I to CSV
+
+
+
+# Generate the base plot
+p_curves_eaf_I <- plot_feature_curves(eaf_I, top_asvs_eaf_I) +
+  facet_wrap(~ factor(feature_id, levels = top_asvs_eaf_I), nrow = 5, scales = "free") +
+  labs(title = "Density Distribution of Top Methanotrophs (CH₄)")
+
+# Add WAD lines: 12C (dashed blue), 13C (solid red)
+p_curves_eaf_I_with_wad <- p_curves_eaf_I +
+  geom_vline(data = wad_data_I, aes(xintercept = WAD_12C), 
+             linetype = "dashed", linewidth = 0.8, color = "blue", alpha = 0.8) +
+  geom_vline(data = wad_data_I, aes(xintercept = WAD_13C), 
+             linetype = "solid", linewidth = 0.8, color = "red", alpha = 0.8) +
+  # Optional: annotate WAD lines
+  annotate("text", x = 1.74, y = 0.005, label = "WAD_12C", color = "blue", 
+           size = 3, hjust = 1, fontface = "italic") +
+  annotate("text", x = 1.74, y = 0.0045, label = "WAD_13C", color = "red", 
+           size = 3, hjust = 1, fontface = "italic")
+
+# Print and save
+print(p_curves_eaf_I_with_wad)
+
+
+ggsave("qSIP_EAF_plot/3.WAD_Density_Distribution_CH4_NH4Cl.pdf",
+       plot = p_curves_eaf_I_with_wad,
+       width = 12, height = 25, device = "pdf")
+
+ggsave("qSIP_EAF_plot/3.WAD_Density_Distribution_CH4_NH4Cl.svg",
+       plot = p_curves_eaf_I_with_wad,
+       width = 12, height = 25, dpi = 300, device = "svg")
+```
+
+
+
+
+
+
+```{r WAD shift}
+#************************************************************************************************************************************************
+#** STEP 10: Density Gradient Profiles of Top Methanotrophs ASVs  **
+# -------------------------------------------------------------------------------------------------------
+# This section visualizes the weighted average density (WAD) shifts for the top ¹³C-incorporating methanotrophs in CH₄ and CH₄ + NH₄Cl treatments. 
+# By plotting buoyant density distributions across gradient fractions for selected ASVs, it highlights isotopic enrichment patterns and the degree of DNA labeling in key methane-oxidizing taxa.
+#************************************************************************************************************************************************
+
+#------------------------------------------------------------------
+# a. Pick top ASVs from EAF_results_with_taxonomy.csv
+#------------------------------------------------------------------
+top_asvs_eaf_E <- c("Seq_1", "Seq_9",  "Seq_38", "Seq_2", "Seq_77",  "Seq_13", "Seq_649", "Seq_16", "Seq_209", "Seq_7")
+                    
+
+# Run plot_feature_curves, then adjust the factor levels
+p_curves_eaf_E <- plot_feature_curves(eaf_E, top_asvs_eaf_E) +
+  facet_wrap(~ factor(feature_id, levels = top_asvs_eaf_E), 
+             nrow = 5, scales = "fixed") +
+  labs(title = "Density Distribution of Top Methanotrophs (CH₄)")
+
+p_curves_eaf_E_2 <- plot_feature_curves(eaf_E, top_asvs_eaf_E) +
+  facet_wrap(~ feature_id, nrow = 5, scales = "free") +
+  labs(title = "Density Distribution of Top Methanotrophs (CH₄)")
+
+print(p_curves_eaf_E)
+
+
+# Save as SVG
+ggsave("qSIP_EAF_plot/2.Density_Distributio_curves_CH4.svg",
+       plot = p_curves_eaf_E,
+       width = 12, height = 25, dpi = 300, device = "svg")
+
+# Save as PDF
+ggsave("qSIP_EAF_plot/2.Density_Distributio_CH4.pdf",
+       plot = p_curves_eaf_E,
+       width = 12, height = 25, device = "pdf")
+
+ggsave("qSIP_EAF_plot/2_2.Density_Distributio_curves_CH4.svg",
+       plot = p_curves_eaf_E_2,
+       width = 12, height = 25, dpi = 300, device = "svg")
+
+# Save as PDF
+ggsave("qSIP_EAF_plot/2_2.Density_Distributio_CH4.pdf",
+       plot = p_curves_eaf_E_2,
+       width = 12, height = 25, device = "pdf")
+
+#------------------------------------------------------------------
+# b. Pick top ASVs in eaf_I for CH4 + NH$cl treatment
+#------------------------------------------------------------------
+top_asvs_eaf_I <- c("Seq_2", "Seq_13", "Seq_791", "Seq_1", "Seq_209", "Seq_9", "Seq_7", "Seq_16", "Seq_649", "Seq_1047")
+
+p_curves_eaf_I <- plot_feature_curves(eaf_I, top_asvs_eaf_I) +
+  facet_wrap(~ feature_id, nrow = 5, scales = "fixed") +
+  labs(title = "Density Distribution of Top Methanotrophs (CH₄ + NH4Cl)")
+
+p_curves_eaf_I_2 <- plot_feature_curves(eaf_I, top_asvs_eaf_I) +
+  facet_wrap(~ feature_id, nrow = 5, scales = "free") +
+  labs(title = "Density Distribution of Top Methanotrophs (CH₄ + NH4Cl)")
+
+print(p_curves_eaf_I)
+
+
+
+# Save as SVG
+ggsave("qSIP_EAF_plot/3.Density_Distributio_curves_CH4_NH4Cl.svg",
+       plot = p_curves_eaf_I,
+       width = 12, height = 25, dpi = 300, device = "svg")
+
+# Save as PDF
+ggsave("qSIP_EAF_plot/3.Density_Distributio_CH4_NH4Cl.pdf",
+       plot = p_curves_eaf_I,
+       width = 12, height = 25, device = "pdf")
+ggsave("qSIP_EAF_plot/3_2.Density_Distributio_curves_CH4_NH4Cl.svg",
+       plot = p_curves_eaf_I_2,
+       width = 12, height = 25, dpi = 300, device = "svg")
+
+# Save as PDF
+ggsave("qSIP_EAF_plot/3_2.Density_Distributio_CH4_NH4Cl.pdf",
+       plot = p_curves_eaf_I_2,
+       width = 12, height = 25, device = "pdf")
+
+```
+
+
+
+
+```{r Heatmap top 50 ASV}
+#************************************************************************************************************************************************
+#** STEP 11: Heatmap: Top ¹³C-Incorporating ASVs with Custom Genus Colors  **
+#-------------------------------------------------------------------------------
+# Build a heatmap of the top 50 ¹³C-incorporating ASVs across treatments, with taxonomic annotations and custom genus-level color palettes for interpretability.
+# Purpose: Show EAF patterns across all sources. Heatmap of Top 50 ASVs by EAF 
+#************************************************************************************************************************************************
+
+# a. Get top 50 ASVs
+top_asvs <- eaf_results %>%
+  filter(group == "CH4") %>%
+  arrange(desc(mean_resampled_EAF)) %>%
+  head(50) %>%
+  pull(feature_id)
+
+# b. Extract EAF values by group
+eaf_matrix <- eaf_results %>%
+  filter(feature_id %in% top_asvs) %>%
+  select(feature_id, group, mean_resampled_EAF) %>%
+  pivot_wider(names_from = group, values_from = mean_resampled_EAF) %>%
+  rename(ASV = feature_id) %>%
+  column_to_rownames("ASV")
+
+eaf_matrix[is.na(eaf_matrix)] <- 0
+
+# c. Add taxonomy
+taxa_subset <- taxa_df %>%
+  filter(ASV %in% rownames(eaf_matrix)) %>%
+  select(ASV, Kingdom, Phylum, Class, Order, Family, Genus) %>%
+  filter(!is.na(ASV))
+
+taxa_subset <- taxa_subset[match(rownames(eaf_matrix), taxa_subset$ASV), ]
+
+# d. Handle missing taxonomy
+taxa_subset$Genus <- ifelse(is.na(taxa_subset$Genus), "Unclassified", as.character(taxa_subset$Genus))
+
+# e. Optional: Group unclassified methanotrophs
+taxa_subset$Genus <- ifelse(
+  taxa_subset$Genus == "Unclassified" & 
+    !is.na(taxa_subset$Family) & 
+    grepl("Methylomonadaceae", taxa_subset$Family),
+  "Unclassified_Methylomonadaceae",
+  as.character(taxa_subset$Genus)
+)
+
+# f. Final cleanup
+taxa_subset <- taxa_subset[!is.na(taxa_subset$ASV), , drop = FALSE]
+taxa_subset$Genus <- as.character(taxa_subset$Genus)
+
+# g. Create annotation
+annotation_df <- data.frame(
+  Genus = taxa_subset$Genus,
+  row.names = taxa_subset$ASV,
+  stringsAsFactors = FALSE
+)
+
+# h. Heatmap with Custom Colors for 18 Genera
+
+# Define your custom color palette
+# Define a custom 44-color palette
+# Define a custom 63-color palette
+my_colors <- c(
+  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+  "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+  "#393b79", "#637939", "#8c6d31", "#843c39", "#7b4173",
+  "#5254a3", "#9c9ede", "#6b6ecf", "#9edae5", "#f7b6d2",
+  "#c7c7c7", "#dbdb8d", "#ff9896", "#c5b0d5", "#c49c94",
+  "#f7b6d2", "#aec7e8", "#ffbb78", "#98df8a", "#ff9896",
+  "#c5b0d5", "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d",
+  "#17becf", "#bcbd22", "#393b79", "#637939", "#8c6d31",
+  "#843c39", "#7b4173", "#5254a3", "#9c9ede", "#e377c2",
+  "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
+  "#1f77b4", "#ffbb78", "#98df8a", "#c5b0d5", "#c49c94",
+  "#f7b6d2", "#aec7e8", "#c7c7c7", "#dbdb8d", "#17becf",
+  "#bcbd22", "#393b79", "#637939", "#8c6d31", "#843c39"
+)
+
+
+
+# Get unique genera in the same order as in annotation_df
+genus_levels <- unique(annotation_df$Genus)
+
+# Check: do we have 18?
+print(paste("Number of unique genera:", length(genus_levels)))
+
+# Assign your colors to the genera
+names(my_colors) <- genus_levels  # This maps each color to a genus
+
+# Create annotation color list
+ann_colors <- list(Genus = my_colors)
+
+# Re-run heatmap with your custom colors
+EAF_heatmap <- pheatmap(
+  eaf_matrix,
+  main = "EAF of Top 50 ¹³C-Incorporating ASVs (CH₄)",
+  color = viridis::viridis(100),  # EAF gradient
+  border_color = NA,
+  cluster_rows = TRUE,
+  cluster_cols = FALSE,
+  show_rownames = FALSE,
+  show_colnames = TRUE,
+  annotation_row = annotation_df,
+  annotation_colors = ann_colors,
+  fontsize = 10,
+  fontsize_row = 8,
+  fontsize_col = 10
+)
+
+# Export
+ggsave("qSIP_EAF_plot/4.EAF_heatmap_top_50.svg", 
+       plot = EAF_heatmap, width = 15, height = 20, dpi = 300, device = "svg")
+
+ggsave("qSIP_EAF_plot/4.EAF_heatmap_top_50.pdf", 
+       plot = EAF_heatmap, width = 15, height = 20, device = "pdf")
+
+print("✅ Heatmap with custom colors saved!")
+```
+
+
+
+```{r filter_and_plot_active_methanotrophs}
+#************************************************************************************************************************************************
+#** STEP 12: Filter for known methanotrophs or Identification and Visualization of Active Methanotrophs  **
+#----------------------------------------------------------------------------------------------------
+# This section filters for known methanotrophic taxa based on genus-level annotation and visualizes their ¹³C incorporation across treatments. 
+# Boxplots highlight the most active methanotrophs (top 20 ASVs) and top genera (EAF > 0.01), illustrating taxon-specific responses to CH₄ and CH₄ + NH₄Cl amendments.
+# All visual outputs are saved for downstream interpretation and publication.
+#************************************************************************************************************************************************
+
+ggplot2::theme_set(ggplot2::theme_bw(base_family = "sans"))
+#-------------------------------------------
+# a. Filter for known methanotrophs
+#-------------------------------------------
+# Modify EAF_results_with_taxonomy.csv and merge unclassified genus with family if they are MOB
+# Read the CSV file with taxonomic results
+eaf_with_taxa_df <- read_csv("qSIP_EAF_plot/EAF_results_with_taxonomy.csv")
+
+methanotrophs <- eaf_with_taxa_df %>%
+  filter(Genus %in% c("Methylocystis", "Methylocella", "Methylomonas", "Unclassified_Methylomonadaceae", "Methylocapsa"))
+
+write.csv(methanotrophs, "qSIP_EAF_plot/methanotroph_incorporation.csv", row.names = FALSE)
+
+#-------------------------------------------
+# b. Plot and Export Figures: qSIP_EAF_plot
+#-------------------------------------------
+
+
+
+#------------------------------------------------------------------------------
+# i: Plot "Top 20 Methanotrophs" Plot
+#------------------------------------------------------------------------------
+p_methano <- methanotrophs %>%
+  top_n(20, mean_resampled_EAF) %>%
+  ggplot(aes(x = reorder(Genus, mean_resampled_EAF), y = mean_resampled_EAF, fill = group)) +
+  geom_boxplot() +
+  coord_flip() +
+  labs(
+    title = "¹³C Incorporation in Methanotrophs",
+    subtitle = "Top 20 ASVs by Excess Atom Fraction",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+    fill = "Treatment"
+  ) +
+  theme(legend.position = "bottom") +
+  scale_fill_viridis_d(option = "plasma")
+
+# Export as svg (high-res) and PDF (vector)
+ggsave("qSIP_EAF_plot/5.Top_methanotrophs_EAF_plot.svg",
+       plot = p_methano,
+       width = 10, height = 6, dpi = 300, device = "svg")
+
+ggsave("qSIP_EAF_plot/5.Top_methanotrophs_EAF_plot.pdf",
+       plot = p_methano,
+       width = 10, height = 6, device = "pdf")
+
+#------------------------------------------------------------------------------
+# ii: Plot "Top Genera" with EAF > 0.01
+#------------------------------------------------------------------------------
+p_genera <- eaf_with_taxa_df %>%
+  filter(mean_resampled_EAF > 0.01) %>%  # Lower threshold
+  top_n(40, mean_resampled_EAF) %>%
+  mutate(Genus = ifelse(is.na(Genus), "Unclassified", Genus)) %>%
+  ggplot(aes(x = reorder(Genus, mean_resampled_EAF), y = mean_resampled_EAF, fill = group)) +
+  geom_boxplot() +
+  coord_flip() +
+  labs(
+    title = "Top ¹³C-Incorporating Genera",
+    subtitle = "ASVs with EAF > 0.01",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+    fill = "Treatment Group"
+  ) +
+  theme(legend.position = "bottom") +
+  scale_fill_brewer(palette = "Set2")
+
+print(p_genera)
+# Export as svg and PDF
+ggsave("qSIP_EAF_plot/6.Top_genera_EAF_plot.svg",
+       plot = p_genera,
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+ggsave("qSIP_EAF_plot/6.Top_genera_EAF_plot.pdf",
+       plot = p_genera,
+       width = 12, height = 8, device = "pdf")
+
+print("✅ All figures exported to 'qSIP_EAF_plot/' directory")
+
+# Compare Median EAF by Group
+eaf_with_taxa_df %>%
+  group_by(group) %>%
+  summarise(
+    median_EAF = median(mean_resampled_EAF),
+    n_high = sum(mean_resampled_EAF > 0.1),
+    n_total = n()
+  )
+```
+
+
+
+
+```{r median_EAF_by_treatment}
+#************************************************************************************************************************************************
+#** STEP 13: Median EAF Distribution Across Treatments  **
+#----------------------------------------------------------------------------------
+# Compares overall ¹³C incorporation across CH₄ and CH₄ + NH₄Cl treatments using boxplots of mean resampled EAFs for all ASVs. 
+# Highlights treatment effects on microbial carbon uptake.
+# Let me know if you want a statistical test (Wilcoxon test) added below the boxplot for significance.
+# Wilcoxon test is suitable when EAF data are not be normally distributed.
+#************************************************************************************************************************************************
+
+# Plot: Compare distribution of 13C incorporation across treatments with statistical test
+p_box <- ggplot(eaf_results, aes(x = group, y = mean_resampled_EAF, fill = group)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(aes(color = group), width = 0.2, alpha = 0.6, size = 1) +
+  stat_summary(fun = mean, geom = "point", shape = 18, size = 4, color = "black") +
+  stat_compare_means(method = "wilcox.test", label = "p.format", 
+                     comparisons = list(c("CH4", "CH4_NH4Cl")),
+                     tip.length = 0.02) +
+  labs(
+    title = "Distribution of EAF by Treatment",
+    x = "Treatment",
+    y = "Mean Resampled EAF"
+  ) +
+  scale_fill_manual(values = c("CH4" = "#1f77b4", "CH4_NH4Cl" = "#d62728")) +
+  scale_color_manual(values = c("CH4" = "#1f77b4", "CH4_NH4Cl" = "#d62728")) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 14),
+    plot.title = element_text(size = 16)
+  )
+
+print(p_box)
+
+ggsave("qSIP_EAF_plot/7.Median_EAF_by_Treatment_(All_ASVs)_boxplot.svg", plot = p_box, width = 6, height = 5, device = "svg")
+ggsave("qSIP_EAF_plot/7.Median_EAF_by_Treatment_(All_ASVs)_boxplot.pdf", plot = p_box, width = 6, height = 5, device = "pdf")
+#ggsave("qSIP_EAF_plot/7.Median_EAF_by_Treatment_(All_ASVs)_boxplot.png", plot = p_box, width = 6, height = 5, device = "png")
+```
+
+
+
+
+```{r top_ASVs_CH4_NH4Cl}
+#************************************************************************************************************************************************
+#** STEP 14: Top ¹³C-Incorporating ASVs in CH₄ + NH₄Cl Treatment **
+#---------------------------------------------------------------------------------------------
+# This section identifies and visualizes the most active taxa (ASVs) under CH₄ + NH₄Cl treatment based on excess atom fraction (EAF). 
+# Taxa exceeding 0.1 and 0.05 EAF thresholds are summarized at the genus level. 
+# Bar plots with standard deviation or family-based color annotations highlight dominant methanotrophs and potential cross-feeders. 
+# Outputs are saved as high-resolution figures for downstream interpretation.
+#************************************************************************************************************************************************
+
+#-----------------------------------------------------------------
+# a. filter Top ASVs in CH₄ + NH₄Cl treatment with EAF > 0.1
+#-----------------------------------------------------------------
+top_0.1_NH4Cl <- eaf_with_taxa_df %>%
+  filter(group == "CH4_NH4Cl", mean_resampled_EAF > 0.1, lower > 0)
+print(top_0.1_NH4Cl)
+
+write.csv(top_0.1_NH4Cl, "qSIP_EAF_plot/top_Taxa_ASV_Mean_EAF_0.1_LCI_0_in_NH4Cl.csv", row.names = FALSE)
+
+# Visualization
+# Read the data
+top_0.1_NH4Cl <- read_csv("qSIP_EAF_plot/top_Taxa_ASV_Mean_EAF_0.1_LCI_0_in_NH4Cl.csv")
+
+# Summarize by genus: mean, SD, n, and carry Family
+top_0.1_NH4Cl_genus_summary <- top_0.1_NH4Cl %>%
+  group_by(Genus_plot) %>%
+  summarise(
+    mean_EAF = mean(mean_resampled_EAF),
+    sd_EAF = sd(mean_resampled_EAF),
+    n_asvs = n(),
+    Family = first(Family),
+    .groups = "drop"
+  ) %>%
+  # Add standard error (optional)
+  mutate(se_EAF = sd_EAF / sqrt(n_asvs)) %>%
+  # Sort by mean_EAF
+  arrange(desc(mean_EAF))
+
+# Reorder for plotting
+# Clean and reorder genus
+top_0.1_NH4Cl_genus_summary <- top_0.1_NH4Cl_genus_summary %>%
+  mutate(Genus_plot = forcats::fct_reorder(Genus_plot, mean_EAF)) # Convert to factor ordered by EAF
+
+# Plot
+Top_0.1_NHCl_plot1 <- ggplot(top_0.1_NH4Cl_genus_summary, aes(x = Genus_plot, y = mean_EAF)) +
+  geom_col(fill = "steelblue", alpha = 0.8, color = "black", linewidth = 0.1) +
+  geom_errorbar(
+    aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+    width = 0.2,
+    color = "black",
+    size = 0.8
+  ) +
+  coord_flip() +
+  labs(
+     title = "Top ¹³C-Incorporating ASVs in CH₄ + NH₄Cl Treatment",
+    subtitle = "n = 10 ASVs with EAF > 0.1, lower CI >0",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+  ) +
+  theme(
+    legend.position = "none",  # No legend needed
+    panel.grid.major.x = element_line(linetype = "dashed", color = "gray90"),
+    axis.text.y = element_text(size = 9)
+  )
+Top_0.1_NHCl_plot1
+
+# Export as svg and PDF
+ggsave("qSIP_EAF_plot/8a.Top_Taxa_ASV_Mean_EAF_0.1_LCI_0_in_NH4Cl_plot1.svg",
+       plot = Top_0.1_NHCl_plot1,
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+ggsave("qSIP_EAF_plot/8a.Top_Taxa_ASV_Mean_EAF_0.1_LCI_0_in_NH4Cl_plot.pdf",
+       plot = Top_0.1_NHCl_plot1,
+       width = 12, height = 8, device = "pdf")
+
+
+# Alternative plot with coloring
+Top_0.1_NHCl_plot2 <- ggplot(top_0.1_NH4Cl_genus_summary, aes(x = Genus_plot, y = mean_EAF, fill = Family)) +
+  geom_col() +
+  geom_errorbar(
+    aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+    width = 0.2,
+    color = "black",
+    size = 0.8
+  ) +
+  coord_flip() +
+  labs(
+    title = "Top ¹³C-Incorporating ASVs in CH₄ + NH₄Cl Treatment",
+    subtitle = "n = 10 ASVs with EAF > 0.1, LCI > 0",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+    fill = "Family"
+  ) +
+  theme(legend.position = "bottom") +
+  scale_fill_brewer(palette = "Set3")
+Top_0.1_NHCl_plot2
+
+# Export as svg and PDF
+ggsave("qSIP_EAF_plot/8b.Top_Taxa_ASV_Mean_EAF_0.1_LCI_0_in_NH4Cl_plot2.svg",
+       plot = Top_0.1_NHCl_plot2,
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+ggsave("qSIP_EAF_plot/8b.Top_Taxa_ASV_Mean_EAF_0.1_LCI_0_in_NH4Cl_plot2.pdf",
+       plot = Top_0.1_NHCl_plot2,
+       width = 12, height = 8, device = "pdf")
+
+
+#-----------------------------------------------------------------
+# filter Top ASVs in CH₄ + NH₄Cl treatment with EAF > 0.05, CL > 0
+#-----------------------------------------------------------------
+top_0.05_NH4Cl <- eaf_with_taxa_df %>%
+  filter(group == "CH4_NH4Cl", mean_resampled_EAF > 0.05, lower > 0)
+print(top_0.05_NH4Cl)
+
+write.csv(top_0.05_NH4Cl, "qSIP_EAF_plot/top_Taxa_ASV_Mean_EAF_0.05_LCI_0_in_NH4Cl.csv", row.names = FALSE)
+
+# Visualization
+# Read the data
+top_0.05_NH4Cl <- read_csv("qSIP_EAF_plot/top_Taxa_ASV_Mean_EAF_0.05_LCI_0_in_NH4Cl.csv")
+
+# Summarize by genus: mean, SD, n, and carry Family
+top_0.05_NH4Cl_genus_summary <- top_0.05_NH4Cl %>%
+  group_by(Genus_plot) %>%
+  summarise(
+    mean_EAF = mean(mean_resampled_EAF),
+    sd_EAF = sd(mean_resampled_EAF),
+    n_asvs = n(),
+    Family = first(Family),
+    .groups = "drop"
+  ) %>%
+  # Add standard error (optional)
+  mutate(se_EAF = sd_EAF / sqrt(n_asvs)) %>%
+  # Sort by mean_EAF
+  arrange(desc(mean_EAF))
+
+# Reorder for plotting
+# Clean and reorder genus
+top_0.05_NH4Cl_genus_summary <- top_0.05_NH4Cl_genus_summary %>%
+  mutate(Genus_plot = forcats::fct_reorder(Genus_plot, mean_EAF)) # Convert to factor ordered by EAF
+
+
+# Plot
+Top_0.05_NHCl_plot1 <- ggplot(top_0.05_NH4Cl_genus_summary, aes(x = Genus_plot, y = mean_EAF)) +
+  geom_col(fill = "steelblue", alpha = 0.8, color = "black", linewidth = 0.05) +
+  geom_errorbar(
+    aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+    width = 0.2,
+    color = "black",
+    size = 0.8
+  ) +
+  coord_flip() +
+  labs(
+     title = "Top ¹³C-Incorporating ASVs in CH₄ + NH₄Cl Treatment",
+    subtitle = "n = 10 ASVs with EAF > 0.05, LCI > 0 ",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+  ) +
+  theme(
+    legend.position = "none",  # No legend needed
+    panel.grid.major.x = element_line(linetype = "dashed", color = "gray90"),
+    axis.text.y = element_text(size = 9)
+  )
+Top_0.05_NHCl_plot1
+
+# Export as svg and PDF 
+ggsave("qSIP_EAF_plot/9a.top_Taxa_ASV_Mean_EAF_0.05_LCI_0_in_NH4Cl_plot3.svg",
+       plot = Top_0.05_NHCl_plot1,
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+ggsave("qSIP_EAF_plot/9a.top_Taxa_ASV_Mean_EAF_0.05_LCI_0_in_NH4Cl_plot3.pdf",
+       plot = Top_0.05_NHCl_plot1,
+       width = 12, height = 8, device = "pdf")
+
+# Alternative plot
+# my_colors <- c(
+#  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+ # "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+#  "#393b79", "#637939", "#8c6d31", "#843c39", "#7b4173",
+ # "#5254a3", "#9c9ede", "#6b6ecf", "#b5cf6b", "#cedb9c",
+#  "#e7cb94", "#fdd0a2")
+
+# Define a custom 44-color palette
+# Define a custom 63-color palette
+my_colors <- c(
+  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+  "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+  "#393b79", "#637939", "#8c6d31", "#843c39", "#7b4173",
+  "#5254a3", "#9c9ede", "#6b6ecf", "#9edae5", "#f7b6d2",
+  "#c7c7c7", "#dbdb8d", "#ff9896", "#c5b0d5", "#c49c94",
+  "#f7b6d2", "#aec7e8", "#ffbb78", "#98df8a", "#ff9896",
+  "#c5b0d5", "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d",
+  "#17becf", "#bcbd22", "#393b79", "#637939", "#8c6d31",
+  "#843c39", "#7b4173", "#5254a3", "#9c9ede", "#e377c2",
+  "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
+  "#1f77b4", "#ffbb78", "#98df8a", "#c5b0d5", "#c49c94",
+  "#f7b6d2", "#aec7e8", "#c7c7c7", "#dbdb8d", "#17becf",
+  "#bcbd22", "#393b79", "#637939", "#8c6d31", "#843c39"
+)
+
+
+
+Top_0.05_NHCl_plot2 <- ggplot(top_0.05_NH4Cl_genus_summary, aes(x = Genus_plot, y = mean_EAF, fill = Family)) +
+  geom_col() +
+  geom_errorbar(
+    aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+    width = 0.2,
+    color = "black",
+    size = 0.8
+  ) +
+  coord_flip() +
+  labs(
+    title = "Top ¹³C-Incorporating ASVs in CH₄ + NH₄Cl Treatment",
+    subtitle = "n = 10 ASVs with EAF > 0.05, LCI > 0",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+    fill = "Family"
+  ) +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = my_colors)
+Top_0.05_NHCl_plot2
+
+# Export as svg and PDF
+ggsave("qSIP_EAF_plot/9b.top_Taxa_ASV_Mean_EAF_0.05_LCI_0_in_NH4Cl_plot3.svg",
+       plot = Top_0.05_NHCl_plot2,
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+ggsave("qSIP_EAF_plot/9b.top_Taxa_ASV_Mean_EAF_0.05_LCI_0_in_NH4Cl_plot3.pdf",
+       plot = Top_0.05_NHCl_plot2,
+       width = 12, height = 8, device = "pdf")
+
+
+
+#----------------------------------------------------------------------------------------------------------------------------------------------
+# filter Top ASVs in CH₄ + NH₄Cl treatment with 90% lower CI > 0 → significantly enriched
+#------------------------------------------------------------------------------------------------------------------------------------------------
+top_0.05_NH4Cl <- eaf_with_taxa_df %>%
+  filter(group == "CH4_NH4Cl", lower > 0)
+print(top_0.05_NH4Cl)
+
+write.csv(top_0.05_NH4Cl, "qSIP_EAF_plot/top_Taxa_ASV_LCI_0_in_NH4Cl.csv", row.names = FALSE)
+
+# Visualization
+# Read the data
+top_0.05_NH4Cl <- read_csv("qSIP_EAF_plot/top_Taxa_ASV_LCI_0_in_NH4Cl.csv")
+
+# Summarize by genus: mean, SD, n, and carry Family
+top_0.05_NH4Cl_genus_summary <- top_0.05_NH4Cl %>%
+  group_by(Genus_plot) %>%
+  summarise(
+    mean_EAF = mean(mean_resampled_EAF),
+    sd_EAF = sd(mean_resampled_EAF),
+    n_asvs = n(),
+    Family = first(Family),
+    .groups = "drop"
+  ) %>%
+  # Add standard error (optional)
+  mutate(se_EAF = sd_EAF / sqrt(n_asvs)) %>%
+  # Sort by mean_EAF
+  arrange(desc(mean_EAF))
+
+# Export
+write.csv(top_0.05_NH4Cl_genus_summary, "qSIP_EAF_plot/Summary_Taxa_ASV_LCI_0_in_NH4Cl.csv", row.names = FALSE)
+
+# Select top 25 genera
+top_genera_0.05_NH4Cl <- top_0.05_NH4Cl_genus_summary %>%
+  slice_head(n = 25)
+
+
+# Reorder for plotting
+# Clean and reorder genus
+top_0.05_NH4Cl_genus_summary <- top_genera_0.05_NH4Cl %>%
+  mutate(Genus_plot = forcats::fct_reorder(Genus_plot, mean_EAF)) # Convert to factor ordered by EAF
+
+
+# Plot
+Top_0.05_NHCl_plot1 <- ggplot(top_0.05_NH4Cl_genus_summary, aes(x = Genus_plot, y = mean_EAF)) +
+  geom_col(fill = "steelblue", alpha = 0.8, color = "black", linewidth = 0.05) +
+  geom_errorbar(
+    aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+    width = 0.2,
+    color = "black",
+    size = 0.8
+  ) +
+  coord_flip() +
+  labs(
+    title = "Top ¹³C-Incorporating ASVs in CH₄ + NH₄Cl Treatment",
+    subtitle = "Top 25 ASVs with LCI > 0 ",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+  ) +
+  theme(
+    legend.position = "none",  # No legend needed
+    panel.grid.major.x = element_line(linetype = "dashed", color = "gray90"),
+    axis.text.y = element_text(size = 9)
+  )
+Top_0.05_NHCl_plot1
+
+# Export as svg and PDF 
+ggsave("qSIP_EAF_plot/9c.top_Taxa_ASV_LCI_0_in_NH4Cl_plot4.svg",
+       plot = Top_0.05_NHCl_plot1,
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+ggsave("qSIP_EAF_plot/9c.top_Taxa_ASV_LCI_0_in_NH4Cl_plot4.pdf",
+       plot = Top_0.05_NHCl_plot1,
+       width = 12, height = 8, device = "pdf")
+
+# Alternative plot
+Top_0.05_NHCl_plot2 <- ggplot(top_0.05_NH4Cl_genus_summary, aes(x = Genus_plot, y = mean_EAF, fill = Family)) +
+  geom_col() +
+  geom_errorbar(
+    aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+    width = 0.2,
+    color = "black",
+    size = 0.8
+  ) +
+  coord_flip() +
+  labs(
+    title = "Top ¹³C-Incorporating ASVs in CH₄ + NH₄Cl Treatment",
+    subtitle = "Top 25 ASVs with LCI > 0",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+    fill = "Family"
+  ) +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = my_colors)
+Top_0.05_NHCl_plot2
+
+# Export as svg and PDF
+ggsave("qSIP_EAF_plot/9d.top_Taxa_ASV_LCI_0_in_NH4Cl_plot5.svg",
+       plot = Top_0.05_NHCl_plot2,
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+ggsave("qSIP_EAF_plot/9d.top_Taxa_ASV_LCI_0_in_NH4Cl_plot5.pdf",
+       plot = Top_0.05_NHCl_plot2,
+       width = 12, height = 8, device = "pdf")
+
+
+```
+
+ 
+
+
+```{r top_ASVs_CH4}
+#************************************************************************************************************************************************
+#** STEP 15: Top ¹³C-Incorporating ASVs in CH₄ (no NH₄Cl) **
+#---------------------------------------------------------------------------------------------
+# This section identifies and visualizes the most active taxa (ASVs) under CH₄ treatment based on excess atom fraction (EAF). 
+# Taxa exceeding 0.1 EAF thresholds are summarized at the genus level. 
+# Bar plots with standard deviation or family-based color annotations highlight dominant methanotrophs and potential cross-feeders. 
+# Outputs are saved as high-resolution figures for downstream interpretation.
+#************************************************************************************************************************************************
+
+# Filter for CH₄ group with high ¹³C incorporation; # 90% lower CI > 0 → significantly enriched
+top_CH4 <- eaf_with_taxa_df %>%
+  filter(group == "CH4", mean_resampled_EAF > 0.1, lower > 0) %>%
+  arrange(desc(mean_resampled_EAF))
+
+# View in console
+print(top_CH4)
+
+# Save to CSV
+write.csv(top_CH4, "qSIP_EAF_plot/top_EAF_0.1_CL_0_Taxa_ASV_in_CH4.csv", row.names = FALSE)
+
+# =============================================================================
+# Bar Plot: Top ¹³C-Incorporating Genera in CH₄ Treatment
+# Bars = Mean EAF per genus, Error = Standard Deviation
+# Are the high-EAF ASVs in CH₄ known methanotrophs or methylotrophs?
+# =============================================================================
+
+# Read and clean data
+top_CH4 <- read_csv("qSIP_EAF_plot/top_EAF_0.1_CL_0_Taxa_ASV_in_CH4.csv")
+
+# Summarize by genus: mean, SD, n, and carry Family
+genus_summary_CH4 <- top_CH4 %>%
+  group_by(Genus_plot) %>%
+  summarise(
+    mean_EAF = mean(mean_resampled_EAF),
+    sd_EAF = sd(mean_resampled_EAF),
+    n_asvs = n(),
+    Family = first(Family),
+    .groups = "drop"
+  ) %>%
+  # Add standard error (optional)
+  mutate(se_EAF = sd_EAF / sqrt(n_asvs)) %>%
+  # Sort by mean_EAF
+  arrange(desc(mean_EAF))
+
+# Select top 25 genera
+top_genera_CH4 <- genus_summary_CH4 %>%
+  slice_head(n = 25)
+
+# Reorder for plotting
+top_genera_CH4 <- top_genera_CH4 %>%
+  mutate(Genus_plot = forcats::fct_reorder(Genus_plot, mean_EAF))
+
+# Plot
+Top_CH4_bar_plot1 <- ggplot(top_genera_CH4, aes(x = Genus_plot, y = mean_EAF)) +
+  geom_col(fill = "steelblue", alpha = 0.8, color = "black", linewidth = 0.1) +
+  geom_errorbar(
+    aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+    width = 0.2,
+    color = "black",
+    size = 0.8
+  ) +
+  coord_flip() +
+  labs(
+    title = "Top 25 ¹³C-Incorporating Genera in CH₄ Treatment",
+    subtitle = "Bars = mean resampled EAF; Error bars = ±SD, Average EAF > 0.1, lower confidence intervals > 0",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)"
+  ) +
+  theme(
+    legend.position = "none",  # No legend needed
+    panel.grid.major.x = element_line(linetype = "dashed", color = "gray90"),
+    axis.text.y = element_text(size = 9)
+  )
+
+# Display plot
+print(Top_CH4_bar_plot1)
+
+# Export
+ggsave("qSIP_EAF_plot/10a.Top25_mean_EAF_0.1_CL_0_CH4_EAF_bar_plot1.pdf", 
+       plot = Top_CH4_bar_plot1, 
+       width = 12, height = 8, device = "pdf")
+
+ggsave("qSIP_EAF_plot/10a.Top25_mean_EAF_0.1_CL_0_CH4_EAF_bar_plot1.svg", 
+       plot = Top_CH4_bar_plot1, 
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+# Alternative plot
+
+Top_CH4_bar_plot2 <- ggplot(top_genera_CH4, aes(x = Genus_plot, y = mean_EAF, fill = Family)) +
+  geom_col() +
+  geom_errorbar(
+    aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+    width = 0.2,
+    color = "black",
+    size = 0.8
+  ) +
+  coord_flip() +
+  labs(
+    title = "Top 25 ¹³C-Incorporating Genera in CH₄ Treatment",
+    subtitle = "Bars = mean resampled EAF; Error bars = ±SD, Average EAF > 0.1, lower confidence intervals > 0",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+    fill = "Family"
+  ) +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = my_colors)
+
+# Display plot
+print(Top_CH4_bar_plot2)
+
+# Export
+ggsave("qSIP_EAF_plot/10b.Top25_mean_EAF_0.1_CL_0_CH4_EAF_bar_plot2.pdf", 
+       plot = Top_CH4_bar_plot2, 
+       width = 12, height = 8, device = "pdf")
+
+ggsave("qSIP_EAF_plot/10b.Top25_mean_EAF_0.1_CL_0_CH4_EAF_bar_plot2.svg", 
+       plot = Top_CH4_bar_plot2, 
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+print("✅ Bar plot with SD exported to 'qSIP_EAF_plot/'")
+
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# Filter for CH₄ group with high ¹³C incorporation with 90% lower CI > 0 → significantly enriched
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+top_CH4 <- eaf_with_taxa_df %>%
+  filter(group == "CH4", lower > 0) %>%
+  arrange(desc(mean_resampled_EAF))
+
+# View in console
+print(top_CH4)
+
+# Save to CSV
+write.csv(top_CH4, "qSIP_EAF_plot/Mean_EAF_LCI_more_than_0_Taxa_ASV_in_CH4.csv", row.names = FALSE)
+
+# Read and clean data
+# top_CH4 <- read_csv("Mean_EAF_LCI_more_than_0_Taxa_ASV_in_CH4.csv")
+
+# Summarize by genus: mean, SD, n, and carry Family
+genus_summary_CH4 <- top_CH4 %>%
+  group_by(Genus_plot) %>%
+  summarise(
+    mean_EAF = mean(mean_resampled_EAF),
+    sd_EAF = sd(mean_resampled_EAF),
+    n_asvs = n(),
+    Family = first(Family),
+    .groups = "drop"
+  ) %>%
+  # Add standard error (optional)
+  mutate(se_EAF = sd_EAF / sqrt(n_asvs)) %>%
+  # Sort by mean_EAF
+  arrange(desc(mean_EAF))
+
+# Export
+write.csv(genus_summary_CH4, "qSIP_EAF_plot/Summary_Taxa_ASV_LCI_0_in_CH4.csv", row.names = FALSE)
+
+# Select top 25 genera
+top_genera_CH4 <- genus_summary_CH4 %>%
+  slice_head(n = 25)
+
+# Reorder for plotting
+top_genera_CH4 <- top_genera_CH4 %>%
+  mutate(Genus_plot = forcats::fct_reorder(Genus_plot, mean_EAF))
+
+# Alternative plot
+
+Top_CH4_bar_plot2 <- ggplot(top_genera_CH4, aes(x = Genus_plot, y = mean_EAF, fill = Family)) +
+  geom_col() +
+  geom_errorbar(
+    aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+    width = 0.2,
+    color = "black",
+    size = 0.8
+  ) +
+  coord_flip() +
+  labs(
+    title = "Top 25 ¹³C-Incorporating Genera in CH₄ Treatment",
+    subtitle = "Bars = mean resampled EAF; Error bars = ±SD, lower confidence intervals > 0",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+    fill = "Family"
+  ) +
+  theme(legend.position = "bottom") +
+  scale_fill_manual(values = my_colors)
+
+# Display plot
+print(Top_CH4_bar_plot2)
+
+# Export
+ggsave("qSIP_EAF_plot/10c.Top_mean_EAF_LCI_0_CH4_bar_plot3.pdf", 
+       plot = Top_CH4_bar_plot2, 
+       width = 12, height = 8, device = "pdf")
+
+ggsave("qSIP_EAF_plot/10c.Top_mean_EAF_LCI_0_CH4_bar_plot3.svg", 
+       plot = Top_CH4_bar_plot2, 
+       width = 12, height = 8, dpi = 300, device = "svg")
+
+print("✅ Bar plot with SD exported to 'qSIP_EAF_plot/'")
+
+
+
+```
+
+
+
+
+```{r compare_top_genera_by_treatment}
+#************************************************************************************************************************************************
+#** STEP 16: Side-by-Side Comparison of Active Genera in CH₄ vs CH₄ + NH₄Cl Treatments **
+#---------------------------------------------------------------------------------------------
+# This section directly compares the top ¹³C-incorporating genera between CH₄ and CH₄ + NH₄Cl treatments. 
+# Genera are ranked by mean EAF, and bar plots visualize treatment-specific incorporation patterns with standard deviation error bars. 
+# The plot highlights functional shifts in active community composition due to NH₄⁺ amendment and potential dominance trade-offs among methanotrophs and cross-feeding taxa.
+#************************************************************************************************************************************************
+# Add treatment label
+top_genera_CH4$treatment <- "CH₄"
+top_0.1_NH4Cl_genus_summary$treatment <- "CH₄ + NH₄Cl"
+
+# Combine
+combined_genera <- bind_rows(
+  top_genera_CH4,
+  top_0.1_NH4Cl_genus_summary
+) %>%
+  mutate(Genus_plot = forcats::fct_reorder2(Genus_plot, treatment, mean_EAF))
+
+# Plot
+p_combined <- ggplot(combined_genera, aes(x = Genus_plot, y = mean_EAF)) +
+  geom_col(aes(fill = treatment), position = "dodge", alpha = 0.8) +
+  geom_errorbar(aes(ymin = mean_EAF - sd_EAF, ymax = mean_EAF + sd_EAF),
+                width = 0.2, color = "black", position = position_dodge(0.9)) +
+  coord_flip() +
+  labs(
+    title = "¹³C Incorporation in Top Genera: CH₄ vs CH₄ + NH₄Cl",
+    subtitle = "Bars = mean resampled EAF; Error = ± SD",
+    x = "Genus",
+    y = "Excess Atom Fraction (EAF)",
+    fill = "Treatment"
+  ) +
+  theme(legend.position = "bottom") +
+  scale_fill_viridis_d(option = "plasma")
+
+print(p_combined)
+
+ggsave("qSIP_EAF_plot/11.Combined_CH4_vs_NH4Cl_bar_plot.svg", 
+       plot = p_combined, width = 12, height = 8, device = "svg")
+ggsave("qSIP_EAF_plot/11.Combined_CH4_vs_NH4Cl_bar_plot.pdf", 
+       plot = p_combined, width = 24, height = 15, device = "pdf")
+```
+
+
+
+
+```{r venn_ASV_overlap}
+#************************************************************************************************************************************************
+#** STEP 17: Venn Diagram of Shared and Unique High-Incorporating ASVs **
+#---------------------------------------------------------------------------------------------
+# This section visualizes the overlap of ASVs with high ¹³C incorporation (EAF > 0.1) between CH₄ and CH₄ + NH₄Cl treatments. 
+# A Venn diagram illustrates the degree of community turnover, highlighting taxa that are either shared across treatments or uniquely active under one condition. 
+# This helps assess how NH₄⁺ addition alters the composition of highly active carbon-assimilating microbes.
+#************************************************************************************************************************************************
+# Get ASV IDs
+
+top_CH4 <- eaf_with_taxa_df %>%
+  filter(group == "CH4", lower > 0) %>%
+  arrange(desc(mean_resampled_EAF))
+
+top_0.05_NH4Cl <- eaf_with_taxa_df %>%
+  filter(group == "CH4_NH4Cl", lower > 0)
+print(top_0.05_NH4Cl)
+
+
+asvs_CH4  <- top_CH4$feature_id
+asvs_NH4Cl <- top_0.05_NH4Cl$feature_id
+
+
+
+# Create Venn list
+venn_list <- list("CH₄" = asvs_CH4, "CH₄ + NH₄Cl" = asvs_NH4Cl)
+
+# Create ggvenn plot object
+venn_plot <- ggvenn(
+  venn_list,
+  fill_color = c("skyblue", "orange"),
+  stroke_size = 0.5,
+  set_name_size = 4
+) +
+  ggtitle("Shared ¹³C-Incorporating ASVs with 90% lower CI > 0 → significantly enriched")
+
+# Display (optional)
+print(venn_plot)
+
+# Save as SVG
+ggsave("qSIP_EAF_plot/12.Venn_CH4_vs_NH4Cl_ASV_overlap.svg",
+       plot = venn_plot,
+       width = 6, height = 5, dpi = 300, device = "svg")
+
+# Save as PDF
+ggsave("qSIP_EAF_plot/12.Venn_CH4_vs_NH4Cl_ASV_overlap.pdf",
+       plot = venn_plot,
+       width = 6, height = 5, device = "pdf")
+
+```
+
+

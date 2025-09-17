@@ -1,0 +1,170 @@
+# Use ANCOM-BC and DESeq2 Together 
+
+# You already have: 
+
+    ✅ ANCOM-BC → Identifies ¹³C-incorporating taxa in each replicate (per-gradient)
+    ✅ DESeq2 → Tests if NH₄⁺ changes the overall response (treatment effect)
+     
+
+This is the ideal combination. 
+
+Instead of creating a redundant "within" script, you should compare the results from your two existing analyses. 
+ 
+✅ Recommended Script: Compare ANCOM-BC and DESeq2 Results 
+
+```{r}
+# =============================================================================
+# 06. COMPARE ANCOM-BC AND DESeq2 RESULTS
+# =============================================================================
+
+library(tidyverse)
+library(readr)
+library(limma)
+library(VennDiagram)
+library(ggvenn)
+library(gplots)
+
+# Load results from your two analyses
+ANCOMBC_final <- read_tsv("ANCOM_BC_results_with_taxonomy.tsv")
+DESeq2_final <- read_tsv("DESeq2_interaction_CH4_vs_CH4NH4Cl.tsv")
+
+# Add method column
+ANCOMBC_final <- ANCOMBC_final %>% 
+  mutate(Method = "ANCOM-BC", 
+         log2FoldChange_sign = ifelse(log2FoldChange > 0, "Positive", "Negative"))
+
+DESeq2_final <- DESeq2_final %>% 
+  mutate(Method = "DESeq2", 
+         log2FoldChange_sign = ifelse(log2FoldChange > 0, "Positive", "Negative"))
+
+# Combine top responders
+top_responders <- bind_rows(
+  ANCOMBC_final %>% arrange(desc(abs(log2FoldChange))) %>% head(50),
+  DESeq2_final %>% arrange(desc(abs(log2FoldChange))) %>% head(50)
+) %>% 
+  distinct(taxon, .keep_all = TRUE)
+
+# Extract top 50 responders from each method
+top_ANCOMBC <- ANCOMBC_final %>% arrange(desc(abs(log2FoldChange))) %>% head(50)
+top_DESeq2 <- DESeq2_final %>% arrange(desc(abs(log2FoldChange))) %>% head(50)
+
+# Define the data
+venn_list <- list(
+  ANCOMBC = top_ANCOMBC$taxon,
+  DESeq2 = top_DESeq2$taxon
+)
+
+# Create output directory
+output_dir <- "06_ANCOMBC_DESeq2_figures"
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir)
+}
+
+# --- Save PDF ---
+pdf(file.path(output_dir, "ANCOMBC_DESeq2_venn.pdf"), width = 8, height = 6)
+
+venn_grob <- venn.diagram(
+  x = venn_list,
+  filename = NULL,  # Don’t write to file directly
+  main = "Overlap of Top 50 Responders",
+  main.cex = 1.5,
+  cex = 1.2,
+  cat.cex = 1.2,
+  cat.fontfamily = "Helvetica",
+  fill = c("skyblue", "lightcoral"),
+  alpha = 0.5
+)
+
+grid::grid.draw(venn_grob)  # Now this works
+dev.off()
+
+
+# --- Save SVG ---
+svg(file.path(output_dir, "ANCOMBC_DESeq2_venn.svg"), width = 8, height = 6)
+grid::grid.draw(venn_grob)
+dev.off()
+
+
+# Save overlap table
+overlap <- top_responders %>% 
+  group_by(taxon) %>% 
+  filter(n() > 1) %>%  # Present in both
+  ungroup()
+
+write_tsv(overlap, "ANCOMBC_DESeq2_overlap.tsv")
+
+# Summary: Which taxa show consistent direction?
+consistent <- inner_join(
+  ANCOMBC_final %>% select(taxon, ANCOM_log2FC = log2FoldChange),
+  DESeq2_final %>% select(taxon, DESeq2_log2FC = log2FoldChange),
+  by = "taxon"
+) %>% 
+  mutate(Direction = ifelse(sign(ANCOM_log2FC) == sign(DESeq2_log2FC), "Consistent", "Inconsistent"))
+
+write_tsv(consistent, "ANCOMBC_DESeq2_consistency.tsv")
+
+# Message
+cat("✅ Comparison complete.\n")
+cat("- Overlap saved to: ANCOMBC_DESeq2_overlap.tsv\n")
+cat("- Consistency analysis saved to: ANCOMBC_DESeq2_consistency.tsv\n")
+
+
+
+# Load results
+ANCOMBC_final <- read_tsv("ANCOM_BC_results_with_taxonomy.tsv")
+DESeq2_final <- read_tsv("DESeq2_interaction_CH4_vs_CH4NH4Cl.tsv")
+
+# Find all overlapping ASVs
+overlap_all <- ANCOMBC_final %>%
+  semi_join(DESeq2_final, by = "taxon")
+
+nrow(overlap_all)  # How many ASVs are in both results?
+
+# Save all overlapping ASVs
+write_tsv(overlap_all, "ANCOMBC_DESeq2_full_overlap.tsv")
+
+# Find overlapping ASVs AND combine their results
+overlap_all <- inner_join(
+  ANCOMBC_final %>% select(taxon, log2FoldChange, padj, Phylum, Genus),
+  DESeq2_final %>% select(taxon, log2FoldChange, padj),
+  by = "taxon",
+  suffix = c("_ANCOMBC", "_DESeq2")
+)
+
+# Now you can sort and view
+overlap_all %>%
+  arrange(desc(abs(log2FoldChange_ANCOMBC)), padj_ANCOMBC) %>%
+  select(taxon, log2FoldChange_ANCOMBC, padj_ANCOMBC, log2FoldChange_DESeq2, padj_DESeq2, Phylum, Genus) %>%
+  head(20)
+
+# Join full data
+consistent <- inner_join(
+  ANCOMBC_final %>% select(taxon, ANCOM_log2FC = log2FoldChange),
+  DESeq2_final %>% select(taxon, DESeq2_log2FC = log2FoldChange),
+  by = "taxon"
+) %>%
+  mutate(Direction = ifelse(sign(ANCOM_log2FC) == sign(DESeq2_log2FC), "Consistent", "Inconsistent"))
+
+# How many are consistent?
+consistent %>% dplyr::count(Direction)
+
+# Venn diagram of all significant ASVs
+venn_list <- list(
+  ANCOMBC = ANCOMBC_final$taxon,
+  DESeq2 = DESeq2_final$taxon
+)
+
+# Use VennDiagram for publication-quality plot
+library(VennDiagram)
+venn.diagram(
+  x = venn_list,
+  filename = "06_ANCOMBC_DESeq2_figures/ANCOMBC_DESeq2_venn_all.svg",
+  category.names = c("ANCOM-BC", "DESeq2"),
+  fill = c("skyblue", "lightcoral"),
+  alpha = 0.5,
+  cex = 1.5,
+  cat.cex = 1.2
+)
+
+```
+

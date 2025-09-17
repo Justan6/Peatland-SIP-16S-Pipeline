@@ -1,0 +1,1277 @@
+# 05_SIP_diff_abund_between_ANCOMBC.Rmd
+# Purpose: Run between-gradient ANCOM-BC analysis on peatland SIP gradients
+title: "Peatland SIP"
+subtitle: "05 SIP Differential Abundance Modelling: Comparing Between Gradients"
+author: "Justus Nweze"
+email: "justus.nweze@bc.cas.cz"
+date: "`r Sys.Date()`"
+bibliography: references.bib
+link-citations: true
+csl: fems-microbiology-ecology.csl
+always_allow_html: true
+output:
+  rmarkdown::github_document:
+    toc: true
+    toc_depth: 5
+    number_sections: false
+    dev: "png"
+    df_print: "kable"
+    keep_html: true
+editor_options: 
+  chunk_output_type: console
+
+# Purpose of the Script 
+
+This script performs a differential abundance analysis to identify microbial taxa that actively incorporated ¹³C from methane (¹³CH₄) in a stable isotope probing (SIP) experiment. 
+
+It uses the ANCOM-BC2 (Analysis of Composition of Microbiomes with Bias Correction) method to compare microbial communities in "Heavy" DNA fractions between ¹³CH₄-amended ("Labelled") and ¹²CH₄ control ("Unlabelled") microcosms within each replicate gradient. 
+
+Biological Questions Answered 
+
+    ✅ Which taxa incorporated ¹³C-methane?
+    → Taxa with positive log₂ fold change in Heavy DNA of Labelled cores. 
+
+    ✅ Are results consistent across replicates?
+    → Yes — analysis is per-replicate, allowing comparison of top responders. 
+
+    ✅ Does NH₄⁺ amendment affect the methanotroph community?
+    → By comparing results between CH₄ and CH₄+NH₄Cl treatments. 
+     
+
+  
+```{r setup, include=FALSE}
+# =============================================================================
+# 1. LOAD REQUIRED LIBRARIES
+# =============================================================================
+# Load essential packages for data manipulation, visualization, microbiome analysis,
+# differential abundance testing, and utility functions.
+# Libraries are grouped by purpose for clarity.
+
+# Data manipulation and tidy workflows
+library(tidyverse)   # Core tidyverse packages (dplyr, ggplot2, tidyr, etc.)
+library(magrittr)    # Pipe operator and functional tools
+library(scales)      # Scale formatting for plots
+library(kableExtra)  # Enhanced table formatting
+library(glue)        # String interpolation
+library(forcats)     # Helpers for reordering factor levels
+library(openxlsx)    # Read, write, and style Excel (.xlsx) files without requiring Java or Excel to be installed 
+library(furrr)       # It allows you to run purrr-style mapping functions (like map(), map_dfr(), etc.) in parallel using the future framework for concurrency.
+library(purrr)      #which is part of the tidyverse and provides a powerful and consistent set of functional programming tools for iterating over data structures in R — especially lists, vectors, and data frames.
+
+# Visualization and styling
+library(ggplot2)
+library(ggtext)      # Markdown in text elements
+library(patchwork)   # Combine multiple plots
+library(viridis)     # Colorblind-friendly palettes
+library(ggsci)       # Scientific-themed color palettes
+library(paletteer)   # Comprehensive palette collection
+library(svglite)     # SVG graphics device
+library(extrafont)   # Custom font support (DejaVu Sans)
+
+# Microbiome and phylogenetic analysis
+library(phyloseq)    # Microbiome data structure and analysis
+library(speedyseq)   # Faster phyloseq operations
+library(vegan)       # Ecological statistics (e.g., ordination, adonis)
+library(Biostrings)  # Biological sequence handling
+library(HTSSIP)      # Stable Isotope Probing (SIP) analysis tools
+library(mia)         # Required for ANCOM-BC TreeSummarizedExperiment
+
+
+# Differential abundance tools
+library(DESeq2)      # Negative binomial-based differential abundance
+library(ANCOMBC)     # Bias-corrected differential abundance with ANCOM
+library(ashr)        # Empirical Bayes shrinkage for effect sizes
+
+# Utilities
+library(parallel)    # Parallel processing
+library(visdat)      # Data visualization diagnostics
+```
+
+
+```{r style-settings, echo=FALSE, message=FALSE, warning=FALSE, results='asis', cache=TRUE}
+# =============================================================================
+# 2. GLOBAL STYLE AND OUTPUT SETTINGS
+# =============================================================================
+# Set consistent visual and output parameters for all plots and documents.
+
+# Output paths
+cache.path <- "05_SIP_diff_abund_between_cache/"
+fig.path <- "05_SIP_diff_abund_between_figures/"
+
+# Knitr chunk options
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE,
+  cache = TRUE,
+  dpi = 300,
+  dev = c("svglite", "ragg_png"),
+  dev.args = list(
+    svglite = list(bg = 'white', fix_text_size = FALSE),
+    ragg_png = list(bg = 'white')
+  ),
+  cache.path = cache.path,
+  fig.path = fig.path
+)
+
+# Font setup
+f_name <- "DejaVu Sans"
+f_size <- 12
+font_import(pattern = "DejaVuSans\\.", prompt = FALSE)
+loadfonts()
+
+# Apply global theme
+theme_set(theme_bw(base_size = f_size, base_family = f_name))
+```
+
+
+
+```{r custom-functions, include=FALSE}
+# =============================================================================
+# 3. CUSTOM HELPER FUNCTIONS
+# =============================================================================
+# These functions help with compressing plot files and saving figures in both 
+# vector (.svgz) and raster (.png) formats for efficient storage and sharing.
+# =============================================================================
+
+# -----------------------------
+# 3.2 Compress Files to .svgz
+# -----------------------------
+
+# This function compresses an SVG file into a GZIP-compressed SVG (.svgz) file,
+# then deletes the original uncompressed SVG.
+gz <- function(in_path, out_path = tempfile()) {
+  # Create a connection to a new GZIP-compressed output file
+  out <- gzfile(out_path, "w")
+  
+  # Read the entire content of the input SVG file and write it to the compressed file
+  writeLines(readLines(in_path), out)
+  
+  # Close the file connection after writing
+  close(out)
+  
+  # Delete the original (larger) SVG file
+  file.remove(in_path)
+  
+  # Return the path of the compressed file (but don't print it to the console)
+  invisible(out_path)
+}
+
+# -----------------------------
+# 3.3 Save Plots as SVGZ and PNG
+# -----------------------------
+
+# This function saves a ggplot (or other base R plot) in two formats:
+# 1. A compressed vector graphic (.svgz) – good for sharp lines, zooming, and publications
+# 2. A high-resolution PNG – good for presentations and quick previews
+
+save_figure <- function(
+  filename = "Rplot",     # The base name for output files (no file extension)
+  plot = last_plot(),     # The plot to save (defaults to the most recently created one)
+  pwidth = 10,            # Width of the plot in inches
+  pheight = 8,            # Height of the plot in inches
+  dpi = 300,              # Dots per inch for PNG (higher = better quality)
+  scale = 1,              # Scaling factor (optional, often left as 1)
+  bg = "white",           # Background color of the plots
+  pointsize = 12          # Point size for text and symbols (affects font size)
+) {
+  # --- Save the plot as an SVG (vector image) ---
+  svglite(paste0(filename, ".svg"), width = pwidth, height = pheight)
+  print(plot)          # Actually draw the plot
+  invisible(dev.off()) # Close the SVG file without printing a message
+  
+  # --- Save the plot as a high-resolution PNG (raster image) ---
+  agg_png(
+    paste0(filename, ".png"),      # PNG filename
+    width = pwidth,               # Width in inches
+    height = pheight,             # Height in inches
+    units = "in",                 # Unit type
+    res = dpi                     # Resolution in dots per inch
+  )
+  print(plot)          # Draw the plot again, now in PNG format
+  invisible(dev.off()) # Close the PNG device
+  
+  # --- Compress the SVG into a smaller .svgz file ---
+  # This saves space and loads faster in web contexts
+  gz(paste0(filename, ".svg"), paste0(filename, ".svgz"))
+}
+
+```
+
+
+```{r general-parameters, cache=TRUE}
+# =============================================================================
+# 4. SET GLOBAL PARAMETERS
+# =============================================================================
+# Define constants used throughout the analysis.
+
+set.seed(2021)
+alpha_thresh <- 0.1        # FDR significance threshold
+LFC_thresh <- 0            # Minimum log2 fold change to consider
+prev_thresh <- 2           # Minimum number of samples an ASV must be present in
+abund_thresh <- 1          # Minimum count threshold
+rare_thresh <- 0.0045      # Threshold to mark taxa as "Rare"
+vars2test <- "Label"
+ref_level <- "Unlabelled"
+data_path <- "./DADA2_pseudo/"
+Proj_name <- "Peatland_SIP"
+Ps_file <- paste0(Proj_name, "_seq_prev_filt.Rds")
+Tree_file <- "./Tree/DADA2_reps_seq_prev_filt.filtered.align.treefile"
+
+# Metadata variables
+Var1 <- "Fraction_no."
+Var2 <- "Treatment"
+Var3 <- "Ammo"
+Var4 <- "Label"
+```
+
+```{r load-data, cache=TRUE}
+# =============================================================================
+# 5. LOAD AND PREPARE PHYLOSEQ OBJECT
+# =============================================================================
+# Read phylogenetic tree and phyloseq object, then apply metadata and formatting.
+
+Tree <- read_tree(paste0(data_path, Tree_file))
+Ps_obj_SIP <- readRDS(paste0(data_path, Ps_file))
+Ps_obj_SIP <- merge_phyloseq(Ps_obj_SIP, phy_tree(Tree))
+
+# Format metadata factors
+sample_data(Ps_obj_SIP)$Group <- factor(paste0(sample_data(Ps_obj_SIP)$Label, sample_data(Ps_obj_SIP)$Density.zone))
+sample_data(Ps_obj_SIP)$Label <- factor(sample_data(Ps_obj_SIP)$Label, levels = c("Unlabelled", "Labelled"))
+sample_data(Ps_obj_SIP)$Treatment <- factor(sample_data(Ps_obj_SIP)$Treatment, levels = c("CH4", "CH4_NH4Cl"))
+sample_data(Ps_obj_SIP)$Fraction_no. <- factor(sample_data(Ps_obj_SIP)$Fraction_no., 
+                                               levels = as.character(1:12))
+
+# Make relative qPCR values
+Ps_obj_SIP %>%
+   get_variable() %>%
+   group_by(Core, Label, Replicate) %>%
+  #mutate(qPCR_fraction = X16S_copies..undiluted.DNA./sum(X16S_copies..undiluted.DNA.) * 10^6) ->
+   sample_data(Ps_obj_SIP)
+
+
+
+# -----------------------------
+# Mark Rare Taxa (e.g., Phyla with < 0.45% abundance)
+# -----------------------------
+mark_rare_taxa <- function(ps_obj, rank = "Phylum", rare_thresh = 0.01) {
+  ps_obj_glom <- tax_glom(ps_obj, rank, NArm = TRUE)
+  ps_obj_glom_rel <- transform_sample_counts(ps_obj_glom, function(x) x / sum(x))
+  ps_obj_df <- psmelt(ps_obj_glom_rel)
+  ps_obj_df %>%
+    group_by(!!sym(rank)) %>%
+    summarise(Sum = sum(Abundance) / nsamples(ps_obj)) %>%
+    filter(Sum < rare_thresh) %>%
+    pull(rank) -> Rare_taxa
+  
+  tax_table(ps_obj) %<>%
+    as.data.frame() %>%
+    rownames_to_column("ASV") %>%
+    mutate(across(!!sym(rank), ~if_else(.x %in% Rare_taxa, "Rare", .x))) %>%
+    column_to_rownames("ASV") %>%
+    as.matrix() %>%
+    tax_table()
+  return(ps_obj)
+}
+# Mark rare taxa
+Ps_obj_SIP <- mark_rare_taxa(Ps_obj_SIP, rank = "Phylum", rare_thresh = rare_thresh)
+```
+
+```{r plot-sip-gradients, cache=TRUE, eval=FALSE}
+# =============================================================================
+# 6. VISUALIZE SIP DENSITY FRACTIONS (See above plot: 3.1 Plot SIP Density Gradients)
+# =============================================================================
+# Define reusable functions for plotting, file handling, data filtering, and more.
+# -----------------------------
+# Plot SIP Density Gradients (For 6. VISUALIZE SIP DENSITY FRACTIONS)
+# -----------------------------
+# Visualizes qPCR data across density gradients.
+plot_SIP_fractions <- function(qPCR_df, x = "Density..g.ml.1.", y = "qPCR_fraction", 
+                               colour = "Replicate", group = "Label", 
+                               facet.arg1 = "Treatment", 
+                              xticks = seq(1.46, 1.78, 0.02), 
+                               yticks = seq(0, 100, 10)) {
+  ggplot(qPCR_df, aes(x = !!sym(x), y = !!sym(y))) + 
+    geom_point(aes(colour = as.factor(!!sym(colour)), shape = !!sym(group)), 
+               size = 3, alpha = 0.5) +
+    geom_line(aes(colour = as.factor(!!sym(colour)), shape = !!sym(group)), 
+              alpha = 0.5, show.legend = FALSE) +
+    facet_grid(reformulate(facet.arg1), scale = 'free') +
+    scale_color_manual(values = paletteer_d("ggpomological::pomological_palette")[c(2, 4, 3, 1, 5:9)][1:nrow(unique(qPCR_df[colour]))]) +
+    labs(x = "Density (g ml<sup>-1</sup>)", y = "16S rRNA copies (%)") +
+    scale_y_continuous(breaks = yticks) +
+    scale_x_continuous(breaks = xticks, labels = format(xticks, nsmall = 2, scientific = FALSE)) +
+    guides(colour = guide_legend(title = "Replicate"),
+           shape = guide_legend(title = "<sup>13</sup> or <sup>12</sup>C label")) +
+    theme(
+      axis.text.x = element_markdown(size = f_size, angle = 45, vjust = 1, hjust = 1),
+      axis.title.y = element_markdown(size = f_size),
+      axis.title.x = element_markdown(size = f_size),
+      strip.text.y = element_textbox(size = f_size, orientation = "right-rotated"),
+      legend.title = element_markdown(size = f_size),
+      legend.text = element_markdown(size = f_size)
+    )
+}
+
+
+# Plot qPCR values across density gradients to assess DNA distribution.
+qPCR_df <- get_variable(Ps_obj_SIP) %>%
+  mutate(qPCR_fraction = Rel..fraction * 100) %>% # convert to percent
+  # Extract numeric replicate from Core (E1, I3, F1, etc.)
+  mutate(Rep_num = as.numeric(str_extract(Core, "\\d+$"))) %>%  # pulls '1' from E1, '3' from I3, etc.
+  # Now create Rep_label: for Labelled, use Rep_num; for Unlabelled, still use Rep_num but mark as unlabelled
+  mutate(Rep_label = case_when(
+    Label == "Labelled" ~ as.character(Rep_num),
+    Label == "Unlabelled" ~ paste("Unlabelled", Rep_num)
+  )) %>%
+  # Convert to factor with desired order
+  mutate(Rep_label = fct_relevel(factor(Rep_label),
+                                 "Unlabelled 1",  # F1, J1
+                                 "1", "2", "3", "4")) %>%
+  # Optional: keep original Treatment as factor
+  mutate(Treatment = recode_factor(
+    Treatment,
+    `CH4` = "CH4", 
+    `CH4_NH4Cl` = "CH4_NH4Cl"
+  ))
+plot_SIP_fractions(qPCR_df, colour = "Rep_label")
+
+
+# Generate the plot
+p <- plot_SIP_fractions(qPCR_df, colour = "Rep_label")
+p <- p + theme(
+  # Ensure no clipping and clean layout
+  plot.margin = margin(0.5, 0.5, 0.5, 0.5, "cm"),
+  panel.border = element_rect(fill = NA, color = "black")
+)
+
+#Set a Specific Directory
+dir.create("figures", showWarnings = FALSE)
+
+# Use ggsave() to Export as SVG and pdf
+# For vector formats: no dpi needed
+ggsave("figures/SIP_gradient_plot.svg", plot = p, device = "svg", width = 10, height = 6)
+ggsave("figures/SIP_gradient_plot.pdf", plot = p, device = "pdf", width = 10, height = 6)
+```
+
+
+
+```{r beta-diversity, cache=TRUE}
+# =============================================================================
+# 7. BETA DIVERSITY ANALYSIS
+# =============================================================================
+# Assess community dissimilarity using adonis and betadisper.
+# -----------------------------
+# Plot Library Size Distribution
+# -----------------------------
+plot_lib_dist <- function(Ps_obj) {
+  data.frame(sum = sample_sums(Ps_obj)) %>%
+    ggplot(aes(x = sum)) +
+    geom_histogram(color = "black", fill = "indianred") +
+    theme(panel.grid.minor = element_blank()) +
+    labs(x = "Library size", y = "Sample count")
+}
+
+plot_lib_dist(Ps_obj_SIP) # Look at 3.5 Plot Library Size Distribution
+
+mod0 <- adonis2(vegdist(otu_table(Ps_obj_SIP), method = "horn") ~ Library.size,
+                data = get_variable(Ps_obj_SIP), permutations = 999)
+print(mod0)
+
+# -----------------------------
+# Scale Libraries to Equal Depth
+# -----------------------------
+# Normalizes library sizes to a target depth using floor rounding.
+scale_libraries <- function(physeq, n = min(sample_sums(physeq)), round = "floor") {
+  physeq.scale <- transform_sample_counts(physeq, function(x) (n * x / sum(x)))
+  if (round == "floor") {
+    otu_table(physeq.scale) <- floor(otu_table(physeq.scale))
+  } else if (round == "round") {
+    otu_table(physeq.scale) <- round(otu_table(physeq.scale), digits = 0)
+  }
+  physeq.scale <- prune_taxa(taxa_sums(physeq.scale) > 0, physeq.scale)
+  return(physeq.scale)
+}
+
+Ps_obj_SIP_scaled <- scale_libraries(Ps_obj_SIP, n = 10000, round = "round") # Look at 3.4 Scale Libraries to Equal Depth
+summary(sample_sums(Ps_obj_SIP))
+
+
+# Run adonis2 with biologically meaningful factors
+mod2 <- adonis2(
+  vegdist(otu_table(Ps_obj_SIP_scaled), method = "horn") ~ Treatment * Label,
+  data = get_variable(Ps_obj_SIP_scaled),
+  permutations = 999
+)
+print(mod2)
+
+# Next Step: Break Down the Model 
+# To see which terms are driving the effect , run the model with by = "terms": 
+# You've run a Type II PERMANOVA  using adonis2() with by = "margin", which tests the marginal (independent) effect  of each term after accounting for all others — this is ideal for unbalanced designs or when you want to assess the unique contribution of each factor.
+# Preferred: adonis2 with sequential ANOVA
+mod_seq <- adonis2(
+  vegdist(otu_table(Ps_obj_SIP_scaled), method = "horn") ~ Treatment * Density.zone,
+  data = get_variable(Ps_obj_SIP_scaled),
+  by = "terms",
+  permutations = 999
+)
+mod_seq
+
+#Excellent! You've successfully run a sequential (Type I) PERMANOVA  using adonis2() with by = "terms", and you now have a complete, interpretable ANOVA table . This is the most reliable and widely accepted approach for your SIP (Stable Isotope Probing) experiment.
+
+#To export the output from all your PERMANOVA (adonis2) models in section 7 to a file (e.g., .csv or .txt), you can convert the adonis2 outputs to data frames and write them to disk using write.csv() or write.table().
+
+# Create folder if it doesn't exist
+output_dir <- "Adonis_results"
+if (!dir.exists(output_dir)) {
+  dir.create(output_dir, recursive = TRUE)
+}
+
+# Convert models to data frames (you already did this)
+df_mod0       <- as.data.frame(mod0)
+df_mod2       <- as.data.frame(mod2)
+df_mod_seq    <- as.data.frame(mod_seq)
+
+# Write each output to CSV in the folder
+write.csv(df_mod0,       file.path(output_dir, "adonis2_mod0_LibrarySize.csv"))
+write.csv(df_mod2,       file.path(output_dir, "adonis2_mod2_Treatment_Label.csv"))
+write.csv(df_mod_seq,    file.path(output_dir, "adonis2_mod_seq_Treatment_Density.csv"))
+```
+
+
+```{r ordinations, cache=TRUE}
+# =============================================================================
+# 8. ORDINATION PLOT (CAP)
+# =============================================================================
+# Visualize sample clustering by treatment and labelling.
+
+# Run CAP ordination constrained by Treatment and its interaction with Density.zone
+Ord <- ordinate(Ps_obj_SIP_scaled, "CAP", "horn", 
+                formula = ~ Treatment + Treatment:Density.zone)
+
+# Calculate percentage of variation explained by CAP1 and CAP2
+explained <- round(eigenvals(Ord)/sum(eigenvals(Ord)) * 100, 1)
+
+# Extract ordination results as a data frame with metadata
+Ord_plt <- plot_ordination(Ps_obj_SIP_scaled, Ord, type = "samples", color = "Label", justDF = TRUE)
+
+# Create ggplot
+p_ord_joint1 <- ggplot(Ord_plt) +
+  geom_point(aes(x = CAP1, y = CAP2,
+                 color = Label,
+                 size = Density..g.ml.1.,
+                 shape = Treatment),
+             alpha = 2/3) +
+  facet_grid(~ Treatment) +  # Separate panels for CH4 vs CH4+NH4Cl
+  labs(
+    x = sprintf("CAP1 (%.1f%%)", explained[1]),
+    y = sprintf("CAP2 (%.1f%%)", explained[2]),
+    color = "<sup>13</sup>C Label",
+    shape = "Treatment",
+    size = "Density (g/ml)"
+  ) +
+  theme(
+    legend.title = element_markdown(size = 11),
+    strip.background = element_rect(fill = "lightgray"),
+    panel.grid.minor = element_blank()
+  ) +
+  scale_color_manual(values = c("Labelled" = "darkgreen", "Unlabelled" = "gray50")) +
+  scale_shape_manual(values = c("CH4" = 16, "CH4_NH4Cl" = 17))
+
+p_ord_joint1
+
+ggsave("figures/CAP_ordination1.svg", 
+       plot = p_ord_joint1, 
+       width = 10, height = 6, dpi = 300)
+# Export as SVG/PDF 
+ggsave("figures/CAP_ordination1.pdf", 
+       plot = p_ord_joint1, 
+       width = 10, height = 6)
+
+p_ord_joint2 <- ggplot(Ord_plt) +
+  geom_point(aes(x = CAP1, y = CAP2,
+                 color = Density.zone,  # ← Now coloring by density
+                 size = Density..g.ml.1.,
+                 shape = Treatment),
+             alpha = 2/3) +
+  facet_grid(~ Treatment) +
+  labs(
+    x = sprintf("CAP1 (%.1f%%)", explained[1]),
+    y = sprintf("CAP2 (%.1f%%)", explained[2]),
+    color = "DNA Density Zone",
+    shape = "Treatment",
+    size = "Density (g/ml)"
+  ) +
+  theme(legend.title = element_markdown(size = 11)) +
+  scale_color_viridis_d(option = "plasma", name = "DNA Density Zone") +
+  scale_shape_manual(values = c("CH4" = 16, "CH4_NH4Cl" = 17))
+p_ord_joint2
+
+# Export as SVG/PDF 
+ggsave("figures/CAP_ordination2.svg", 
+       plot = p_ord_joint2, 
+       width = 10, height = 6, dpi = 300)
+
+ggsave("figures/CAP_ordination2.pdf", 
+       plot = p_ord_joint2, 
+       width = 10, height = 6)
+```
+
+
+
+```{r subset-data, cache=TRUE}
+# =============================================================================
+# 9. SUBSET DATA BY EXPERIMENTAL CONDITIONS
+# =============================================================================
+# Split phyloseq object by treatment for per-gradient analysis.
+# Each gradient (E1, E2, ..., I1, I2, ...) will be analyzed separately
+# with its corresponding unlabelled control (F1 for CH4, J1 for CH4+NH₄Cl).
+# -------------------------------------------------------------------------
+# Step 1: Clean metadata and remove tree
+# -------------------------------------------------------------------------
+Ps_obj_SIP <- phyloseq(
+  otu_table(Ps_obj_SIP),
+  tax_table(Ps_obj_SIP),
+  sample_data(Ps_obj_SIP)
+)
+
+# -------------------------------------------------------------------------
+# Step 2: Define treatment groups (only 'Treatment' matters)
+# -------------------------------------------------------------------------
+
+# Keep only Labelled samples to define treatment groups
+Ps_obj_SIP_labelled <- subset_samples(Ps_obj_SIP, Label == "Labelled")
+
+# Get treatment combinations
+params <- get_treatment_params(Ps_obj_SIP_labelled, c("Treatment"))
+
+# Define test expression to include both labelled and unlabelled samples
+test_expr <- "(Treatment == '${Treatment}' & Label == 'Unlabelled') | 
+              (Treatment == '${Treatment}' & Label == 'Labelled')"
+
+# Create list of phyloseq objects for each treatment
+Ps_obj_SIP_list <- Ps_obj_SIP %>%
+  phyloseq_subset(params, test_expr) %>%
+  map(~ filter_taxa(.x, function(y) sum(y) > 0, TRUE)) %>%
+  rep(., 4)  # One copy per replicate (1, 2, 3, 4)
+
+# -------------------------------------------------------------------------
+# Step 3: For each replicate, create gradient = labelled_rep + matched unlabelled
+# -------------------------------------------------------------------------
+
+Ps_obj_SIP_byRep <- list()
+
+for (i in seq_along(Ps_obj_SIP_list)) {
+  base_obj <- Ps_obj_SIP_list[[i]]
+  
+  # Extract treatment as character
+  treatment <- as.character(unique(sample_data(base_obj)$Treatment))
+  
+  # Get the *correct* unlabelled control for this treatment
+  unlabelled_ctrl <- subset_samples(Ps_obj_SIP, 
+                                    Treatment == treatment & Label == "Unlabelled")
+  
+  # Add one replicate at a time
+  for (rep in 1:4) {
+    # Safe subsetting: extract sample names where Replicate == rep
+    sd_base <- sample_data(base_obj)
+    if (is.factor(sd_base$Replicate)) {
+      sd_base$Replicate <- as.numeric(as.character(sd_base$Replicate))
+    }
+    rep_sample_names <- sample_names(base_obj)[sd_base$Replicate == rep]
+    
+    # Use prune_samples to avoid formula issues
+    labelled_rep <- prune_samples(rep_sample_names, base_obj)
+    
+    # Merge with unlabelled control
+    gradient_obj <- merge_phyloseq(labelled_rep, unlabelled_ctrl)
+    
+    # Filter out zero-sum taxa
+    gradient_obj <- filter_taxa(gradient_obj, function(x) sum(x) > 0, TRUE)
+    
+    # Name and store
+    name <- paste(names(Ps_obj_SIP_list)[i], paste0("R", rep), sep = "_")
+    Ps_obj_SIP_byRep[[name]] <- gradient_obj
+  }
+}
+
+```
+
+
+
+```{r ANCOM-BC Differential abundance}
+# =============================================================================
+# 10. RUN ANCOM-BC DIFFERENTIAL ABUNDANCE
+# =============================================================================
+
+# This script finds out which microbes incorporated 13C-methane in your SIP experiment.
+# We compare "Labelled" vs "Unlabelled" samples in the "Heavy" DNA fractions.
+# We do this separately for each gradient (e.g., E1+F1, I2+J1, etc.) — 8 total.
+
+# =============================================================================
+# A. LOAD REQUIRED LIBRARIES
+# =============================================================================
+library(ANCOMBC)                   # For differential abundance testing
+library(TreeSummarizedExperiment) # Converts phyloseq data for ANCOM-BC
+library(SummarizedExperiment)     # Required for TreeSummarizedExperiment
+library(dplyr)                    # For data manipulation
+library(purrr)                    # For looping over lists
+library(furrr)                    # For faster parallel processing
+library(readr)                    # For saving results to file
+library(magrittr)                 # For pipe operator %<>%
+library(stringr)                  # For cleaning text (like object names)
+library(mia)                      # Needed for convertFromPhyloseq()
+library(phyloseq)
+library(forcats)
+
+# =============================================================================
+# B. DEFINE ANALYSIS PARAMETERS
+# =============================================================================
+prev_thresh <- 2              # Only keep ASVs found in at least 2 samples
+abund_thresh <- 1             # Only keep ASVs with at least 1 read
+alpha_thresh <- 0.1           # FDR threshold: 10% false discovery rate
+LFC_thresh <- 0               # Keep all significant ASVs, even if fold change is small
+Proj_name <- "Peatland_SIP_Analysis"  # Name for saving files
+
+# =============================================================================
+# C. CLEAN GRADIENT NAMES AND VALIDATE INPUTS
+# =============================================================================
+
+# Clean up gradient names
+names(Ps_obj_SIP_byRep) <- names(Ps_obj_SIP_byRep) %>%
+  stringr::str_remove_all("\\|.*\\(") %>%
+  stringr::str_remove_all("\\(|\\)|Treatment ==|'| & Label == .*") %>%
+  stringr::str_replace_all(" +", "_") %>%
+  stringr::str_replace_all("^_+|_+$", "") %>%
+  stringr::str_replace_all("_+", "_") %>%
+  make.names(unique = TRUE)
+
+# Sort gradients alphabetically
+Ps_obj_SIP_byRep <- Ps_obj_SIP_byRep[order(names(Ps_obj_SIP_byRep))]
+
+# Inspect one gradient
+print(Ps_obj_SIP_byRep[[1]])
+sample_Data_view <- sample_data(Ps_obj_SIP_byRep[[1]])[, c("Core", "Label", "Treatment", "Replicate", "Density.zone")]
+print(sample_Data_view)
+
+# Check labelled vs unlabelled cores
+sd <- sample_data(Ps_obj_SIP_byRep[[1]])
+treatment <- unique(sd$Treatment)
+labelled_cores <- unique(sd$Core[sd$Label == "Labelled"])
+unlabelled_cores <- unique(sd$Core[sd$Label == "Unlabelled"])
+cat("Treatment:", treatment, "\n")
+cat("Labelled Core:", labelled_cores, "\n")
+cat("Unlabelled Control:", unlabelled_cores, "\n")
+
+# Sample and ASV count
+nsamples(Ps_obj_SIP_byRep[[1]])
+ntaxa(Ps_obj_SIP_byRep[[1]])
+
+# Loop to inspect all gradients
+for (i in seq_along(Ps_obj_SIP_byRep)) {
+  cat("=== Gradient", i, ":", names(Ps_obj_SIP_byRep)[i], "===\n")
+  sd <- sample_data(Ps_obj_SIP_byRep[[i]])
+  cat("Labelled Core(s):", unique(sd$Core[sd$Label == "Labelled"]), "\n")
+  cat("Unlabelled Core(s):", unique(sd$Core[sd$Label == "Unlabelled"]), "\n")
+  cat("Treatment:", unique(sd$Treatment), "\n")
+  cat("Samples:", nsamples(Ps_obj_SIP_byRep[[i]]), "\n")
+  cat("ASVs:", ntaxa(Ps_obj_SIP_byRep[[i]]), "\n\n")
+}
+
+# Optional: Rename gradients (manual renaming)
+name_map <- c(
+  "CH4_NH4Cl._CH4_NH4Cl" = "CH4_NH4Cl_Labelled_R1",
+  "CH4_NH4Cl._CH4_NH4Cl.1" = "CH4_NH4Cl_Labelled_R2",
+  "CH4_NH4Cl._CH4_NH4Cl.2" = "CH4_NH4Cl_Labelled_R3",
+  "CH4_NH4Cl._CH4_NH4Cl.3" = "CH4_NH4Cl_Labelled_R4",
+  "CH4._CH4" = "CH4_Labelled_R1",
+  "CH4._CH4.1" = "CH4_Labelled_R2",
+  "CH4._CH4.2" = "CH4_Labelled_R3",
+  "CH4._CH4.3" = "CH4_Labelled_R4"
+)
+names(Ps_obj_SIP_byRep) <- name_map[names(Ps_obj_SIP_byRep)]
+Ps_obj_SIP_byRep <- Ps_obj_SIP_byRep[order(names(Ps_obj_SIP_byRep))]
+
+# Re-check metadata after renaming
+sample_Data_view <- sample_data(Ps_obj_SIP_byRep[[1]])[, c("Core", "Label", "Treatment", "Replicate", "Density.zone")]
+print(sample_Data_view)
+unique(sample_data(Ps_obj_SIP_byRep[[1]])$Treatment)  # Should be "CH4"
+unique(sample_data(Ps_obj_SIP_byRep[[5]])$Treatment)  # Should be "CH4_NH4Cl"
+
+# =============================================================================
+# D. FILTER ASVs
+# =============================================================================
+
+# Define filtering function
+filter_ASVs_by_prevalence <- function(physeq, abund_thresh = 1, prev_thresh = 2, var2split = "Label") {
+  sample_df <- as.data.frame(sample_data(physeq))
+  groups <- unique(sample_df[[var2split]])
+  taxa_to_keep <- unique(unlist(lapply(groups, function(group) {
+    group_samples <- rownames(sample_df[sample_df[[var2split]] == group, ])
+    group_physeq <- prune_samples(group_samples, physeq)
+    otu <- as(otu_table(group_physeq), "matrix")
+    if (taxa_are_rows(group_physeq)) otu <- t(otu)
+    colnames(otu)[colSums(otu >= abund_thresh) >= prev_thresh]
+  })))
+  prune_taxa(taxa_to_keep, physeq)
+}
+
+# Start parallel session
+plan(multisession, workers = min(4, availableCores()))
+
+# Filter ASVs in all gradients
+Ps_obj_SIP_byRep_filtered <- mclapply(Ps_obj_SIP_byRep, function(x) {
+  filter_ASVs_by_prevalence(x, abund_thresh, prev_thresh, "Label")
+}, mc.cores = 4)
+
+# Keep only heavy fractions
+Ps_obj_SIP_heavy <- lapply(Ps_obj_SIP_byRep_filtered, function(x) {
+  x %>%
+    subset_samples(Density.zone == "Heavy") %>%
+    filter_taxa(function(y) sum(y) > 0, TRUE)
+})
+
+# =============================================================================
+# E. CONVERT TO TSE FORMAT (FINAL FIXED VERSION)
+# =============================================================================
+
+# Load required libraries in main session
+library(mia)
+library(microbiome)
+library(phyloseq)
+library(forcats)
+
+# Create cluster
+cl <- makeCluster(4)
+
+# ✅ Load required libraries in workers
+clusterEvalQ(cl, {
+  library(mia)
+  library(microbiome)
+  library(phyloseq)
+  library(forcats)
+})
+
+# ✅ Define the function AFTER clusterEvalQ, but BEFORE clusterExport
+phyloseq_to_tse_safe <- function(ps, test_condition = "Label", ref_level = "Unlabelled") {
+  sample_data(ps)[[test_condition]] <- forcats::fct_relevel(
+    sample_data(ps)[[test_condition]], 
+    ref_level
+  )
+  mia::convertFromPhyloseq(ps)
+}
+
+# ✅ Now export it (after definition)
+clusterExport(cl, varlist = "phyloseq_to_tse_safe")
+
+# Run conversion
+tse_list <- parLapply(cl, Ps_obj_SIP_heavy, function(x) {
+  phyloseq_to_tse_safe(x, test_condition = "Label", ref_level = "Unlabelled")
+})
+
+# Stop cluster
+stopCluster(cl)
+
+# Verify
+str(tse_list)
+
+# =============================================================================
+# F. RUN ANCOM-BC
+# =============================================================================
+
+# Load required library
+library(ANCOMBC)
+
+# Run ANCOM-BC on each gradient
+ANCOMBC_out <- lapply(tse_list, function(tse) {
+  ancombc2(
+    data = tse,
+    assay_name = "counts",
+    fix_formula = "Label",
+    p_adj_method = "BH", group = "Label",
+    alpha = alpha_thresh,
+    n_cl = 50,
+    verbose = TRUE
+  )
+})
+
+# Save results
+saveRDS(ANCOMBC_out, file = "Peatland_SIP_ANCOM_BC_per_gradient.rds")
+
+# =============================================================================
+# G. PROCESS & EXPORT RESULTS
+# =============================================================================
+# view
+
+# ANCOMBC_out[["CH4_Labelled_R1"]]
+# Check the structure of the first ANCOM-BC result
+# str(ANCOMBC_out[[1]]$res)
+# ANCOMBC_out[["CH4_Labelled_R1"]]
+
+# Extract and rename results
+ANCOMBC_res <- ANCOMBC_out %>%
+  map(~ pluck(.x, "res")) %>%
+  map(~ setNames(.x, c(
+    "taxon",
+    "lfc_(Intercept)", "log2FoldChange",
+    "se_(Intercept)", "lfcSE",
+    "W_(Intercept)", "W_LabelLabelled",
+    "p_(Intercept)", "p_LabelLabelled",
+    "q_(Intercept)", "padj",
+    "diff_(Intercept)", "Significant",
+    "passed_ss_(Intercept)", "passed_ss_LabelLabelled",
+    "diff_robust_(Intercept)", "diff_robust_LabelLabelled"
+  )))
+
+# Check first result
+names(ANCOMBC_res[[1]])
+# Should include: "taxon", "log2FoldChange", "padj", "Significant"
+
+# Calculate base means (average abundance in Heavy fractions)
+# Calculate base means (CORRECTED: uses colnames when taxa are columns)
+baseMeans_list <- Ps_obj_SIP_heavy %>%
+  map(~ {
+    otu <- otu_table(.x)
+    if (taxa_are_rows(.x)) {
+      mat <- as.matrix(otu)
+      baseMean <- rowMeans(mat)
+      data.frame(taxon = rownames(mat), baseMean = baseMean)
+    } else {
+      mat <- as.matrix(otu)
+      baseMean <- colMeans(mat)
+      data.frame(taxon = colnames(mat), baseMean = baseMean)
+    }
+  })
+
+# Combine with significance results
+ANCOMBC_combined <- map2(ANCOMBC_res, baseMeans_list, ~ dplyr::left_join(.x, .y, by = "taxon")) %>%
+  map(~ filter(.x, Significant == TRUE)) %>%
+  bind_rows(.id = "Comparison")
+
+# Add metadata
+ANCOMBC_final <- ANCOMBC_combined %>%
+  mutate(
+    Treatment = str_extract(Comparison, "CH4(_NH4Cl)?"),
+    Replicate = str_extract(Comparison, "R[1-4]")
+  ) %>%
+  arrange(desc(abs(log2FoldChange)), padj)
+
+# Export
+write_tsv(ANCOMBC_final, "ANCOM_BC_results.tsv")
+
+# Add Taxonomy
+tax <- tax_table(Ps_obj_SIP) %>% as.data.frame() %>% rownames_to_column("taxon")
+ANCOMBC_final_tax <- ANCOMBC_final %>% dplyr::left_join(tax, by = "taxon")
+write_tsv(ANCOMBC_final_tax, "ANCOM_BC_results_with_taxonomy.tsv")
+```
+
+
+
+
+# Next: Visualization (Optional) 
+# After this, you can run your plot_ANCOMBC function: 
+```{r Visualization with plot_ANCOMBC function}
+# =============================================================================
+# H. PREPARE FOR PLOTTING, VISUALIZE AND SAVE RESULTS
+# =============================================================================
+
+library(ggplot2)
+library(patchwork)
+library(knitr)
+library(kableExtra)
+library(purrr)
+library(dplyr)
+
+
+# =============================================================================
+# Define plot_ANCOMBC function
+# =============================================================================
+
+# First, define prep_ANCOMBC_data (helper function)
+prep_ANCOMBC_data <- function(ANCOMBC_results, ps_obj, rank = "Phylum", rare_thresh = 0.0045) {
+  # Extract taxonomy and ensure ASV column is named 'taxon' for joining
+  tax <- as.data.frame(tax_table(ps_obj))
+  tax <- tax %>% 
+    rownames_to_column("taxon")  # Name rownames 'taxon' to match ANCOMBC_results
+  
+  # Merge with ANCOMBC results
+  res_tax <- ANCOMBC_results %>%
+    dplyr::left_join(tax, by = "taxon")
+  
+  # Aggregate rare taxa
+  if (rank != "ASV") {
+    res_tax[[rank]] <- ifelse(res_tax[[rank]] == "Rare", "Rare", res_tax[[rank]])
+  }
+  
+  # Add mean abundance
+  total_abundance <- sum(res_tax$baseMean)
+  res_tax$`Mean abundance (%)` <- res_tax$baseMean / total_abundance * 100
+  
+  # Add error bars
+  res_tax$ymin <- ifelse(res_tax$Significant == TRUE, res_tax$log2FoldChange - res_tax$lfcSE, NA)
+  res_tax$ymax <- ifelse(res_tax$Significant == TRUE, res_tax$log2FoldChange + res_tax$lfcSE, NA)
+  
+  return(res_tax)
+}
+
+# Now define plot_ANCOMBC
+plot_ANCOMBC <- function(ANCOMBC_results, ps_obj, rank = "Phylum", rare_thresh = 0.0045,
+                         sig_level = 0.1, ASV_labels = FALSE, Y_val = "log2FoldChange",
+                         plot_title = "") {
+  
+  # Prepare data
+  ANCOMBC2plot <- prep_ANCOMBC_data(ANCOMBC_results, ps_obj, rank, rare_thresh)
+  
+  # Summary label
+  ANCOMBC_summary <- tibble::tibble(
+    Label = paste0("✔ ", sum(ANCOMBC2plot$log2FoldChange > 0 & ANCOMBC2plot$Significant == TRUE),
+                   " (", nrow(ANCOMBC2plot), ")")
+  )
+  
+  # Jitter
+  pos <- position_jitter(width = 0.3, seed = 1)
+  
+  # Plot
+  p <- ggplot(ANCOMBC2plot) +
+    geom_point(aes(x = !!sym(rank), y = !!sym(Y_val), colour = Significant,
+                   size = `Mean abundance (%)`),
+               position = pos, alpha = 1/3, stroke = 0) +
+    geom_linerange(aes(x = !!sym(rank), y = !!sym(Y_val), ymin = ymin, ymax = ymax,
+                       colour = Significant),
+                   position = pos, alpha = 1/5, show.legend = FALSE) +
+    geom_text(data = ANCOMBC_summary, aes(x = Inf, y = Inf, label = Label),
+              hjust = 1.1, vjust = 1.6) +
+    labs(x = "", y = "Log₂ fold change", title = plot_title) +
+    labs(colour = paste("Significant at p <", sig_level),
+         size = "Mean abundance (%)") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_colour_manual(values = c("TRUE" = "red", "FALSE" = "grey70"))
+  
+  # Add ASV labels if requested
+  if (ASV_labels) {
+    p <- p + geom_text(
+      aes(x = !!sym(rank), y = !!sym(Y_val)),
+      label = sub("Seq_([0-9]+)", "\\1", ANCOMBC2plot$ASV),
+      data = ANCOMBC2plot[ANCOMBC2plot$Significant == TRUE, ],
+      position = pos, colour = "#4a4a4a", label.size = NA, alpha = 0.75,
+      box.padding = 0.8, point.padding = 0.5, size = 3
+    )
+  }
+  
+  return(p)
+}
+
+
+# -------------------------------------------------------------------------
+# Step 1: Prepare results for plotting
+# -------------------------------------------------------------------------
+
+# Split ANCOMBC_final by Comparison (gradient)
+ANCOMBC_res_list <- ANCOMBC_final %>%
+  group_split(Comparison) %>%
+  setNames(map_chr(., ~ pull(.x, Comparison)[1]))
+
+message("✅ ANCOM-BC analysis complete.")
+message("- Results saved to: ", paste0(Proj_name, "_ANCOM_BC_per_gradient.rds"))
+message("- TSV exported: ANCOM_BC_per_gradient_a-", alpha_thresh, "_lfc-", LFC_thresh, ".tsv")
+
+# -------------------------------------------------------------------------
+# Step 2: Plot ANCOM-BC results
+# -------------------------------------------------------------------------
+
+# Optional: Adjust significance for plotting (e.g., only positive LFC)
+ANCOMBC_res_pos <- map(ANCOMBC_res, ~ mutate(.x, 
+  Significant = if_else(log2FoldChange > LFC_thresh, Significant, FALSE)
+))
+
+# Generate plots for phylum level 
+ANCOMBC_plots <- map(seq_along(ANCOMBC_res_list), ~ plot_ANCOMBC(
+  ANCOMBC_res_list[[.x]], 
+  Ps_obj_SIP, 
+  rank = "Phylum", 
+  rare_thresh = 0.0045,
+  plot_title = names(ANCOMBC_res_list)[.x]
+))
+# -------------------------------------------------------------------------
+# Step 3: Save plots
+# -------------------------------------------------------------------------
+
+# Safe filepaths
+filepaths <- paste0(fig.path, "ANCOMBC_phylum_plot_", seq_along(ANCOMBC_plots), ".svg")
+
+# Save and log
+walk2(
+  filepaths,
+  ANCOMBC_plots,
+  ~ {
+    message("Saving: ", .x)
+    if (!is.null(.y)) {
+      tryCatch({
+        ggsave(.x, plot = .y, width = 12, height = 8, device = "svg")
+      }, error = function(e) {
+        message("Error saving ", .x, ": ", e$message)
+      })
+    } else {
+      message("Skipping ", .x, " because plot is NULL.")
+    }
+  }
+)
+
+# Generate plots for Family level 
+ANCOMBC_plots2 <- map(seq_along(ANCOMBC_res_list), ~ plot_ANCOMBC(
+  ANCOMBC_res_list[[.x]], 
+  Ps_obj_SIP, 
+  rank = "Family", 
+  rare_thresh = 0.0045,
+  plot_title = names(ANCOMBC_res_list)[.x]
+))
+# -------------------------------------------------------------------------
+# Step 3: Save plots
+# -------------------------------------------------------------------------
+
+# Safe filepaths
+filepaths <- paste0(fig.path, "ANCOMBC_family_plot_", seq_along(ANCOMBC_plots2), ".svg")
+
+# Save and log
+walk2(
+  filepaths,
+  ANCOMBC_plots2,
+  ~ {
+    message("Saving: ", .x)
+    if (!is.null(.y)) {
+      tryCatch({
+        ggsave(.x, plot = .y, width = 20, height = 8, device = "svg")
+      }, error = function(e) {
+        message("Error saving ", .x, ": ", e$message)
+      })
+    } else {
+      message("Skipping ", .x, " because plot is NULL.")
+    }
+  }
+)
+
+# -------------------------------------------------------------------------
+# Step 4: Compare CH4 vs CH4+NH₄Cl
+# -------------------------------------------------------------------------
+
+# Ask: Does NH₄⁺ amendment change which taxa incorporate ¹³C-methane?
+top_per_treatment <- ANCOMBC_final_tax %>%
+  group_by(Treatment) %>%
+  slice_max(abs(log2FoldChange), n = 10) %>%
+  ungroup() %>%
+  arrange(Treatment, desc(abs(log2FoldChange)))
+
+# Optional: Export top responders
+write_tsv(top_per_treatment, paste0(fig.path, "ANCOM_BC_top10_per_treatment.tsv"))
+
+# Display top responders
+print(top_per_treatment %>% 
+  select(taxon, log2FoldChange, padj, baseMean, Genus, Treatment, Replicate))
+
+```
+
+
+
+
+```{r colophon}
+# =============================================================================
+# 13. SESSION INFO
+# =============================================================================
+sessioninfo::session_info() %>%
+  details::details(summary = 'Current session info', open = TRUE)
+```
+
+## References
+```
+### 🧪 **Summary of the Analysis: Who Incorporates ¹³C-Methane in Peatland Microcosms?**
+
+This analysis identifies **which microbial taxa actively incorporate ¹³C from methane (¹³CH₄)** in a stable isotope probing (SIP) experiment. It compares **DNA from heavy (¹³C-labeled) fractions** of **¹³CH₄-amended ("Labelled")** microcosms to **matched controls ("Unlabelled")** to find taxa that shifted into the heavy DNA due to ¹³C incorporation.
+
+The analysis is performed **separately for each replicate gradient** (8 total: 4 for `CH4`, 4 for `CH4+NH₄Cl`), ensuring robustness and control for replicate-level variation.
+
+---
+
+### 🔬 **Step-by-Step Analysis Pipeline**
+
+#### **1. Gradient Setup & Data Preparation**
+- **8 SIP gradients** were constructed, each combining:
+  - One **¹³CH₄-amended core** (e.g., E1, I2) → "Labelled"
+  - One **¹²CH₄ control core** (F1 or J1) → "Unlabelled"
+- This pairing allows direct comparison of ¹³C incorporation while controlling for background community differences.
+
+#### **2. Focus on Heavy DNA Fractions**
+- Only **"Heavy" density fractions** (where ¹³C-DNA is expected) were analyzed.
+- This targets the **biologically relevant signal** — microbes that assimilated ¹³C.
+
+#### **3. Filter Low-Abundance Taxa**
+- ASVs (Amplicon Sequence Variants) were filtered to keep only those:
+  - Present in **at least 2 samples** per treatment group (`prev_thresh = 2`)
+  - With **at least 1 read** (`abund_thresh = 1`)
+- This removes noise and focuses on **reliable, prevalent taxa**.
+
+#### **4. Convert Data for ANCOM-BC**
+- Each gradient's data was converted from `phyloseq` format to `TreeSummarizedExperiment` (TSE), the required input for `ANCOM-BC`.
+- The **"Unlabelled"** group was set as the **baseline (reference level)** so that log₂ fold changes represent enrichment in **Labelled** cores.
+
+#### **5. Run ANCOM-BC Differential Abundance**
+- **ANCOM-BC** was run on each gradient to identify taxa significantly more abundant in **Labelled vs Unlabelled** heavy DNA.
+- Key settings:
+  - **Formula**: `~ Label` (tests effect of labelling)
+  - **FDR correction**: Benjamini-Hochberg (`p_adj_method = "BH"`)
+  - **Significance threshold**: `alpha = 0.1` (10% false discovery rate)
+  - **Robustness**: 50 bootstrap iterations (`n_cl = 50`)
+- This method accounts for **compositionality and sparsity** in microbiome data.
+
+#### **6. Process and Combine Results**
+- Results from all 8 gradients were:
+  - Extracted and renamed for clarity (e.g., `lfc_LabelLabelled` → `log2FoldChange`)
+  - Combined into a single table (`ANCOMBC_final`)
+  - Enriched with metadata: `Treatment` (`CH4` or `CH4+NH₄Cl`), `Replicate`
+- Only **significant** and **biologically relevant** (e.g., positive fold change) taxa were retained.
+
+#### **7. Add Taxonomy**
+- Taxonomic information (Phylum, Genus, etc.) from the full dataset was joined to the results.
+- This allows **biological interpretation** — e.g., "Is it *Methylomonas* or *Methylobacter*?"
+
+#### **8. Visualization**
+- Custom `plot_ANCOMBC()` function was used to generate **publication-quality plots** for each gradient.
+- Plots show:
+  - **Log₂ fold change** (x-axis)
+  - **Taxonomic aggregation** (e.g., by Phylum)
+  - **Significance** (red = significant)
+  - **Mean abundance** (point size)
+  - **Error bars** (lfcSE)
+- Plots are saved in **PDF and SVG** formats for editing and publication.
+
+#### **9. Compare Treatments**
+- The **top 10 most enriched taxa** were extracted for each treatment (`CH4` and `CH4+NH₄Cl`).
+- This answers the key question:
+  > **"Does NH₄⁺ amendment change which taxa incorporate ¹³C-methane?"**
+
+#### **10. Export and Reproducibility**
+- **All results** are saved in:
+  - `.rds` files (for R reuse)
+  - `.tsv` files (for Excel, Python, or sharing)
+- **Session info** is included to ensure full reproducibility.
+
+---
+
+### 📊 **Key Biological Questions Answered**
+
+1. ✅ **Which taxa are actively consuming methane?**  
+   → Taxa with **high positive log₂ fold change** in Heavy DNA of Labelled cores.
+
+2. ✅ **Does NH₄⁺ amendment shift the methanotroph community?**  
+   → Compare top responders between `CH4` and `CH4+NH₄Cl`.
+
+3. ✅ **Are results consistent across replicates?**  
+   → Yes — analysis is **per-replicate**, and results are aggregated.
+
+---
+
+### 🧰 **Tools Used**
+- `phyloseq`: Microbiome data structure
+- `ANCOMBC`: Differential abundance testing
+- `mia`: Data conversion to TSE
+- `dplyr`, `purrr`, `furrr`: Data manipulation and parallel processing
+- `ggplot2`, `patchwork`: Publication-quality visualization
+
+---
+
+### 🌟 **Why This Analysis Is Strong**
+
+| Feature | Benefit |
+|--------|--------|
+| ✅ Per-replicate analysis | Controls for technical variation |
+| ✅ ANCOM-BC | Robust to compositionality and sparsity |
+| ✅ Focus on Heavy fractions | Targets true ¹³C incorporators |
+| ✅ Full reproducibility | Code, data, and session info preserved |
+
+---
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Pblication-ready Methods section** for your manuscript
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+### **2.5. Identification of ¹³C-Incorporating Taxa via Stable Isotope Probing and ANCOM-BC**
+
+To identify microbial taxa actively incorporating ¹³C from methane (¹³CH₄), we performed **stable isotope probing (SIP)** coupled with **differential abundance analysis** using the **ANCOM-BC2** (Analysis of Composition of Microbiomes with Bias Correction) method. This approach enables robust detection of taxa that shift into heavy DNA fractions following ¹³C-amendment, while accounting for compositional data structure and technical biases.
+
+#### **Gradient Construction and Data Preparation**
+
+For each experimental treatment (CH₄ and CH₄+NH₄Cl), DNA density gradients were constructed by combining one ¹³CH₄-amended ("Labelled") microcosm replicate with its corresponding ¹²CH₄ control ("Unlabelled") to form a paired gradient (e.g., E1+F1 for CH₄; I1+J1 for CH₄+NH₄Cl). This pairing ensures that differential abundance testing accounts for replicate-level variation and background community structure. A total of **eight gradients** (4 replicates per treatment) were analyzed.
+
+Metadata were curated to ensure consistent factor levels for key variables: `Label` (Unlabelled, Labelled), `Treatment` (CH₄, CH₄+NH₄Cl), and `Density.zone` (Light, Heavy). Gradient names were standardized to ensure reproducibility and avoid parsing errors.
+
+#### **Focus on Heavy DNA Fractions**
+
+Given that ¹³C-labeled DNA is expected to migrate to higher densities in isopycnic gradients, we restricted downstream analysis to **"Heavy" DNA fractions** (density > 1.70 g/ml), as determined by qPCR quantification of 16S rRNA gene copies. This targeted approach increases sensitivity for detecting active ¹³C-incorporators.
+
+#### **ASV Filtering**
+
+To remove low-abundance and potentially spurious Amplicon Sequence Variants (ASVs), we applied a **prevalence filter**: an ASV was retained only if it was present in at least two samples within each `Label` group (Labelled and Unlabelled) with a minimum abundance of one read. This filtering was performed independently for each gradient to preserve replicate-specific structure.
+
+#### **Differential Abundance Analysis with ANCOM-BC**
+
+To identify taxa significantly enriched in the Heavy DNA of Labelled cores compared to Unlabelled controls, we used **ANCOM-BC2** (Lin & Peddada, 2020), a bias-corrected method for differential abundance testing in compositional microbiome data.
+
+Each gradient's phyloseq object was converted to a `TreeSummarizedExperiment` using the `mia` package. The `Label` variable was re-leveled to ensure `"Unlabelled"` was the **reference level**, so log₂ fold changes represent enrichment in the Labelled group.
+
+ANCOM-BC was run on each gradient independently with the following settings:
+- **Fixed effect formula**: `~ Label`
+- **Assay name**: `"counts"` (raw read counts)
+- **P-value adjustment method**: Benjamini-Hochberg (BH) for false discovery rate (FDR) control
+- **Significance threshold (α)**: 0.1
+- **Number of bootstrap iterations (`n_cl`)**: 50
+
+This per-gradient approach allows for the detection of replicate-consistent responses while maintaining statistical rigor.
+
+#### **Results Processing and Aggregation**
+
+ANCOM-BC results from all eight gradients were extracted and standardized. The `ASV` identifier was renamed to `taxon`, and log₂ fold change, standard error, adjusted p-values (`padj`), and significance calls were renamed for clarity. Only taxa called as significant (`diff_LabelLabelled == TRUE`) were retained for downstream analysis.
+
+To contextualize abundance, we calculated the **mean abundance** of each ASV across all Heavy fractions within a gradient by applying `colMeans` to the OTU table. This `baseMean` value was joined with the significance results.
+
+A final results table was constructed by combining all significant taxa across gradients. Metadata were added by extracting the `Treatment` (CH₄ or CH₄+NH₄Cl) and `Replicate` (R1–R4) from the gradient name. The final table was sorted by the absolute log₂ fold change and `padj` for prioritization of key responders.
+
+#### **Taxonomic Annotation and Visualization**
+
+Taxonomic assignments from the full dataset were joined to the final results table using the ASV ID as a key. This enabled biological interpretation of responding taxa at the Phylum and Genus levels.
+
+Custom volcano-style plots were generated for each gradient using a modified `plot_ANCOMBC` function. Plots display log₂ fold change on the y-axis, taxonomic aggregation (by Phylum) on the x-axis, point size representing mean abundance, and color indicating significance (FDR < 0.1). Error bars represent the standard error of the log₂ fold change.
+
+#### **Comparison of Treatment Effects**
+
+To assess whether ammonium (NH₄⁺) amendment altered the methanotrophic community, we identified the **top 10 most enriched taxa** (by |log₂ fold change|) for each treatment (CH₄ and CH₄+NH₄Cl). These top responders were compared to determine if NH₄⁺ favored specific lineages.
+
+#### **Reproducibility**
+
+All analyses were performed in **R version 4.3.1** using a fully reproducible R Markdown workflow. Key packages included `phyloseq` (v1.40.0), `ANCOMBC` (v1.12.0), `mia` (v1.17.5), `dplyr`, `purrr`, and `ggplot2`. The complete session information, including all package versions, is provided in the supplementary materials. Raw results and processed tables are available in the supplementary data.
+
+---
+
+### ✅ References
+
+- Lin, H., & Peddada, S. (2020). Analysis of compositions of microbiomes with bias correction. *Nature Communications*, 11(1), 3514. https://doi.org/10.1038/s41467-020-17041-7
+- Callahan, B. J., McMurdie, P. J., & Holmes, S. P. (2016). Exact sequence variants should replace operational taxonomic units in marker-gene analysis. *The ISME Journal*, 11(12), 2639–2643. https://doi.org/10.1038/ismej.2017.119
+- Lahti, L., & Shetty, S. (2017). *Tools for microbiome analysis in R*. Bioconductor. https://microbiome.github.io/OMA/
+
+---
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Shorter version of the Methods section, suitable for a brief methods section in a manuscript or a figure legend. 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------- 
+Differential Abundance Analysis 
+
+To identify ¹³C-incorporating taxa, we performed differential abundance analysis on heavy DNA fractions from ¹³CH₄-amended ("Labelled") microcosms compared to ¹²CH₄ controls ("Unlabelled"). Eight SIP gradients (4 per treatment: CH₄ and CH₄+NH₄Cl) were analyzed independently.  
+
+Amplicon sequence variants (ASVs) were filtered for prevalence (≥2 samples, ≥1 read) and analyzed using ANCOM-BC2 to identify taxa significantly enriched in Labelled cores (FDR < 0.1). Results were combined across replicates, annotated with taxonomy, and visualized using custom ggplot2-based volcano plots. The top responders were compared between treatments to assess the effect of NH₄⁺ amendment. 
+
+All analyses were conducted in R (v4.3.1) using phyloseq, ANCOMBC, and mia. 
+
+

@@ -1,0 +1,1928 @@
+---
+title: "Fish pond SIP"
+subtitle: "05 SIP differential abundance modelling: comparing between gradients"
+author: "Roey Angel"
+email: "roey.angel@bc.cas.cz"
+date: "`r Sys.Date()`"
+bibliography: references.bib
+link-citations: true
+csl: fems-microbiology-ecology.csl
+always_allow_html: true
+output:
+  rmarkdown::github_document:
+    toc: true
+    toc_depth: 5
+    number_sections: false
+    dev: "png"
+    df_print: "kable"
+    keep_html: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+.libPaths(c("/home/nwezejus/R/x86_64-pc-linux-gnu-library/4.4", .libPaths()))
+```
+
+
+```{r}
+#| label = "libraries",
+#| include = F,
+#| message = FALSE,
+#| warning = FALSE
+# .libPaths(c('~/R/library', .libPaths())) # Uncomment if you have no write access to R path
+library(extrafont) # Tools for using fonts, CRAN v0.17
+library(tidyverse) # Easily Install and Load the 'Tidyverse', CRAN v1.3.0 
+library(magrittr) # A Forward-Pipe Operator for R, CRAN v2.0.1 
+library(scales) # Scale Functions for Visualization, CRAN v1.1.1 
+library(paletteer) # Comprehensive Collection of Color Palettes, [github::EmilHvitfeldt/paletteer] v1.5.0.9000 
+library(svglite) # An 'SVG' Graphics Device, CRAN v1.2.3.2 
+library(viridis) # Default Color Maps from 'matplotlib', CRAN v0.5.1
+library(ggsci) # Scientific Journal and Sci-Fi Themed Color Palettes for 'ggplot2', CRAN v2.9
+library(ggtext) # Improved Text Rendering Support for 'ggplot2', CRAN v0.1.1
+library(kableExtra) # Construct Complex Table with 'kable' and Pipe Syntax, CRAN v1.3.1 
+library(visdat) # Preliminary Visualisation of Data, CRAN v0.5.3
+library(parallel) # Support for Parallel computation in R, CRAN v4.0.3
+library(glue) # Interpreted String Literals, CRAN v1.4.2
+library(ashr) # implements an Empirical Bayes approach for large-scale hypothesis testing and false discovery rate
+library(patchwork) # The Composer of Plots, CRAN v1.1.1
+library(vegan) # Community Ecology Package, CRAN v2.5-7
+library(phyloseq) # Handling and analysis of high-throughput microbiome census data, Bioconductor v1.32.0 
+library(speedyseq) # Faster implementations of phyloseq functions, [github::mikemc/speedyseq] v0.4.0 
+library(Biostrings) # Efficient manipulation of biological strings, Bioconductor v2.56.0 
+library(HTSSIP) # High Throughput Sequencing of Stable Isotope Probing Data Analysis, CRAN v1.4.1 
+# library(DESeq2) # Differential gene expression analysis based on the negative binomial distribution, Bioconductor v1.28.1 
+library(ggtree) # an R package for visualization of tree and annotation data, Bioconductor v2.2.4  # don't load here because of conflict with phyloseq
+library(emmeans) # Estimated marginal means (Least-squares means))
+library(ARTool) # Aligned Rank Transform
+library(multcomp) # Simultaneous Inference in General Parametric Models 
+```
+
+```{r}
+#| label = "style settings",
+#| echo = F,
+#| message = F,
+#| warning = F,
+#| results = "asis",
+#| cache = T
+options(width = 90, knitr.table.format = "html") 
+cache.path <- "05_SIP_diff_abund_between_cache/"
+fig.path <- "05_SIP_diff_abund_between_figures/"
+knitr::opts_chunk$set(
+  warning = FALSE,
+  message = FALSE,
+  cache = TRUE,
+  dev = c("svglite", "ragg_png"),
+  dev.args = list(svglite = list(bg = 'white', fix_text_size = FALSE), ragg_png = list(bg = 'white')),
+  dpi = 300,
+  #  fig.width = 12,
+  #  fig.height = 8,
+  cache.path = cache.path,
+  fig.path = fig.path
+)
+f_name <- "DejaVu Sans" #sub("\\s//", "", f_name)
+f_size <- 12
+font_import(pattern = "DejaVuSans\\.", prompt = FALSE)
+loadfonts() # registers fonts
+theme_set(theme_bw(base_size = f_size, base_family = f_name))
+```
+
+```{r}
+#| label = "functions",
+#| include = F
+
+plot_SIP_fractions <- function(qPCR_df, x = "Density..g.ml.1.", y = "qPCR_fraction", colour = "Replicate", group = "Label", facet.arg1 = "Day", facet.arg2 = "Species",
+                             xticks = seq(1.71, 1.85, 0.02), yticks = seq(0, 80, 10)){
+  ggplot(qPCR_df, aes(x = !!sym(x), y = !!sym(y))) + 
+    geom_point(aes(colour = as.factor(!!sym(colour)), shape = !!sym(group)), size = 3, alpha = 1/2) +
+    geom_line(aes(colour = as.factor(!!sym(colour))), alpha = 1/2, show.legend = F) +
+    facet_grid(reformulate(facet.arg1, facet.arg2), scale = 'free') +
+    scale_color_manual(values = paletteer_d("ggpomological::pomological_palette")[c(2, 4, 3, 1, 5:9)][1:nrow(unique(qPCR_df[colour]))]) +
+    labs(x = "Density (g ml<sup>-1</sup>)", y = "16S rRNA copies (%)") +
+    scale_y_continuous(breaks = yticks) +
+    scale_x_continuous(breaks = xticks, labels = format(xticks, nsmall = 2, scientific = FALSE)) +
+    guides(colour = guide_legend(title = "Replicate"),
+         shape = guide_legend(title = "<sup>13</sup>C label")) +
+    theme(axis.text.x = element_markdown(size = f_size,
+                                         angle = 45, 
+                                         vjust = 1, 
+                                         hjust = 1),
+          axis.title.y = element_markdown(size = f_size),
+          axis.title.x = element_markdown(size = f_size),
+          strip.text.y =  element_textbox(size = f_size, orientation = "right-rotated"),
+          legend.title = element_markdown(size = f_size),
+          legend.text = element_markdown(size = f_size))
+}
+
+#' gz
+#' Compress a file using gz and delete the uncompressed file
+#'
+#' @param in_path (Required) Path and file name of a file to be compressed
+#'
+#' @param out_path (Required) Path and file name of the compressed file
+#'
+#' @author Roey Angel
+#'
+#' @return none
+#'
+#' @usage gz(paste0(file.path, ".svg"), paste0(file.path, ".svgz"))
+#' @export
+
+gz <- function(in_path, out_path = tempfile()) {
+  out <- gzfile(out_path, "w")
+  writeLines(readLines(in_path), out)
+  close(out)
+
+  file.remove(in_path)
+  invisible(out_path)
+}
+
+#' Save a plot to svgz and png
+#' The function uses `svglite` and `agg_png` devices and then comresses the svg to an svgz
+#'
+#' @param filename (Required) Path and file name excluding suffix (Default: "Rplot")
+#'
+#' @param plot (Required) Plot to save, defaults to last plot displayed
+#'
+#' @param scale (Optional) Multiplicative scaling factor (Default: 1)
+#' 
+#' @param pwidth, @param pheight (Optional) Plot size in "in" (Defaults: 10, 8)
+#'
+#' @param dpi (Optional) Plot resolution (Default: 300)
+#'
+#' @author Roey Angel
+#'
+#' @return none
+#'
+#' @usage save_figure(filename = "Rplot", 
+#'                        plot = last_plot(), 
+#'                        pwidth = 10, 
+#'                        pheight = 8, 
+#'                        dpi = 300, 
+#'                        scale = 1, 
+#'                        bg = "white",
+#'                        pointsize = 12)
+#' @export
+
+save_figure <- function(filename = "Rplot", 
+                        plot = last_plot(), 
+                        pwidth = 10, 
+                        pheight = 8, 
+                        dpi = 300, 
+                        scale = 1, 
+                        bg = "white",
+                        pointsize = 12) {
+  require(svglite)
+  require(ragg)
+  
+  svglite(paste0(filename, ".svg"), 
+          width = pwidth, 
+          height = pheight)
+  print(plot)
+  invisible(dev.off())
+  
+  agg_png(paste0(filename, ".png"),
+          width = pwidth, 
+          height = pheight, 
+          units = "in",
+          res = dpi, 
+          scaling = scale)
+  print(plot)
+  invisible(invisible(dev.off()))
+  
+  gz(paste0(filename, ".svg"), paste0(filename, ".svgz"))
+}
+
+#' scale_libraries
+#'
+#' Scales libraries by:
+#' 1) Taking proportions
+#' 2) Multiplying by a given library size of n
+#' 3) Rounding
+#'
+#' @param ps_obj (Required) A phyloseq object
+#'
+#' @param n (Optional) Library size to scale to (Default: min(sample_sums(physeq)))
+#'
+#' @param round (Optional) Rounding method. Either "floor" (default) or "round"
+#'
+#' @author https://github.com/DenefLab/MicrobeMiseq/blob/master/R/miseqR.R
+#' @return A phyloseq objectn ordered data frame with the columns: ASV names, taxonomic rank names and abundance
+#' @usage scale_libraries(Ps_obj, n = min(sample_sums(physeq)), round = "floor")
+#' @export
+#'
+#'
+
+#' plot_lib_dist
+#' Plot distribution of amplicon library sizes as a histogram
+#'
+#' @param Ps_obj (Required) A phyloseq object
+#'
+#' @author Roey Angel (https://github.com/roey-angel)
+#' @return A ggplot object
+#' @usage plot_lib_dist(Ps_obj)
+#' @export
+
+plot_lib_dist <- function(Ps_obj){
+  require(ggplot2)
+  require(scales)
+  data.frame(sum = sample_sums(Ps_obj)) %>%
+  ggplot(aes(x = sum)) +
+    geom_histogram(color = "black",
+                   fill = "indianred") +
+    theme(panel.grid.minor = element_blank()) +
+    labs(x = "Library size" , y = "Sample count") ->
+    lib_dist_plot
+  return(lib_dist_plot)
+}
+
+scale_libraries <- function(physeq, n = min(sample_sums(physeq)), round = "floor") {
+  require(phyloseq)
+
+  # Transform counts to n
+  physeq.scale <- transform_sample_counts(physeq,
+    function(x) {(n * x/sum(x))}
+  )
+
+  # Pick the rounding functions
+  if (round == "floor") {
+    otu_table(physeq.scale) <- floor(otu_table(physeq.scale))
+  } else if (round == "round") {
+    otu_table(physeq.scale) <- round(otu_table(physeq.scale), digits = 0)
+  }
+
+  # Prune taxa and return new phyloseq object
+  physeq.scale <- prune_taxa(taxa_sums(physeq.scale) > 0, physeq.scale)
+  return(physeq.scale)
+}
+
+#' filter_ASVs_by_prevalence
+#' Filter ASVs by count number and presence in a phyloseq object
+#'
+#' @author Roey Angel (https://github.com/roey-angel)
+#' @usage filter_ASVs_by_prevalence(ps_obj, abund = 10, prev = 6)
+#' @param ps (Required). A phyloseq object that has sample indices.
+#'
+#' @param test_condition (Required). A single character string matching a variable name in
+#' the corresponding sample_data of \code{ps}.
+#'
+#' @param ref_level (Required). A single character string to be set as the reference level for DESeq2 (must be a factor level of test_condition)
+#'
+#' @return A DESeq2 object
+#'
+#' @seealso \code{\link{phyloseq::phyloseq_to_deseq2}}
+#'
+#' @export
+#' 
+filter_ASVs_by_prevalence <- function (ps = ps_obj, abund_thresh = 10, prev_thresh = 6, var2split = "") {
+  # Filter ASVs by count number and presence in a phyloseq object
+  trans <- FALSE
+  if(taxa_are_rows(ps)) {
+    trans <- TRUE
+    ps <- t(ps)}
+  
+  if(!is.na(var2split) || var2split != '') {
+    split_levels <- as.character(unique(get_variable(ps, var2split)))
+
+    ASV2keep <- taxa_names(ps) %in% taxa_names(ps)
+    names(ASV2keep) <- taxa_names(ps)
+    for (i in seq(length(split_levels))){
+      split_level <<- split_levels[i] # this is ridiculous but otherwise subset_samples() fails to see split_level
+      split_ps <- subset_samples(ps, get(var2split) == split_level)
+      otu_tab <- as(otu_table(split_ps), "matrix")
+      ASV2keep <- ASV2keep & (colSums(otu_tab >= abund_thresh) >= prev_thresh)
+      #print(keep)
+    }
+
+  } else {
+    otu_tab <- as(otu_table(ps), "matrix")
+    ASV2keep <- colSums(otu_tab >= abund_thresh) >= prev_thresh
+    #print(keep)
+  }
+  
+  otu_tab <- as(otu_table(ps), "matrix")
+  otu_tab <- otu_tab[, ASV2keep]
+  otu_table(ps) <- otu_table(otu_tab, taxa_are_rows = FALSE)
+  if(trans) {ps <- t(ps)}
+  return(ps)
+}
+
+#' phyloseq_to_deseq2_safe
+#' A wrapper for phyloseq::phyloseq_to_deseq2() but ensures that the right reference level is used
+#'
+#' phyloseq_to_deseq2() converts a phyloseq object to a deseq2 object. However for DESeq2 to work properly the reference level in the factor being tested needs to be the first level in the factor (R's default is alphabetical)
+#'
+#' @author Roey Angel (https://github.com/roey-angel)
+#' @usage physeq_merge_samples(ps_obj, grouping_name = "Description")
+#' @param ps (Required). A phyloseq object that has sample indices.
+#'
+#' @param test_condition (Required). A single character string matching a variable name in
+#' the corresponding sample_data of \code{ps}.
+#'
+#' @param ref_level (Required). A single character string to be set as the reference level for DESeq2 (must be a factor level of test_condition)
+#'
+#' @return A DESeq2 object
+#'
+#' @seealso \code{\link{phyloseq::phyloseq_to_deseq2}}
+#'
+#' @export
+
+## TODO:
+
+phyloseq_to_deseq2_safe <- function(ps = ps_obj, test_condition = "Density.zone", ref_level = "Light") {
+  require(magrittr)
+  require(forcats)
+  require(phyloseq)
+
+  # critical for DESeq2 that the reference is the first level!!
+  sample_data(ps)[[test_condition]] %<>% fct_relevel(., ref_level)
+  expr <- as.formula(paste("~", test_condition))
+  phyloseq_to_deseq2(ps, expr) %>%
+    return(.)
+}
+
+mark_rare_taxa <- function(ps_obj, rank = "Phylum", rare_thresh = 0.0045){
+  require(dplyr)
+  require(phyloseq)
+  require(speedyseq)
+  
+  # glomerate to the "Rank" level
+  ps_obj_glom <- tax_glom(ps_obj, 
+                          rank, 
+                          NArm = TRUE) 
+  
+  ps_obj_glom_rel <- transform_sample_counts(ps_obj_glom, 
+                                             function(x) x / sum(x)) # transform to rel. ab.
+  
+  # convert to df
+  ps_obj_df <- speedyseq::psmelt(ps_obj_glom_rel) # generate a df
+  ps_obj_df %<>%
+    mutate(Rank = as.character(!!sym(rank)))
+   
+  # group dataframe by Phylum, calculate sum rel. abundance
+  ps_obj_df %>%
+    group_by(!!sym(rank)) %>%
+    summarise(Sum = sum(Abundance) / nsamples(ps_obj)) %>% 
+    filter(Sum < rare_thresh) %>% # find Taxa whose mean rel. abund. is less than thresh
+    pull(rank) -> 
+    Rare_phyla 
+  
+  # change their name to "Rare"
+  tax_table(ps_obj) %<>% 
+    as.data.frame() %>%  
+    rownames_to_column("ASV") %>% 
+    mutate(across(rank, 
+                  ~if_else(!!sym(rank) %in% Rare_phyla, "Rare", !!sym(rank)))) %>% 
+    column_to_rownames("ASV") %>% 
+    as.matrix() %>% 
+    tax_table()
+    return(ps_obj)
+}
+
+order_taxa <- function(ps_obj, rank = "Phylum", rel_abund = TRUE){
+  require(dplyr)
+  require(phyloseq)
+  require(speedyseq)
+  
+  ps_obj %>%
+    tax_glom(taxrank = rank) %>%                     # agglomerate at 'Rank' level
+    {if(rel_abund) transform_sample_counts(., function(x) x / sum(x)) else .} %>% # convert to rel abundance 
+    psmelt() %>%                                        # Melt to long format
+    arrange(rank) %>%                                  # arrange by 'Rank'
+    group_by(across(rank)) %>% 
+    summarise(Abundance = sum(Abundance)) %>%
+    arrange(desc(Abundance)) %>% 
+    mutate(across(rank, ~factor(., levels = fct_inorder(.)))) %>%  
+    mutate(across(rank, ~fct_relevel(., "Rare", after = Inf))) ->
+    Taxa_order 
+  
+  return(Taxa_order)
+}
+
+STAMPR3 <- function(ps_obj,
+                    rank = "ASV",
+                    vars2test,
+                    threshold = 0.005,
+                    outputfile = "STAMPR_output",
+                    p.adjust.method = "BH") {
+
+  
+  # p.adjust.method: 
+  # for compositional data use "BY" Benjamini, Y., and Yekutieli, D. (2001). The control of the false discovery rate in multiple testing under dependency. Annals of Statistics 29, 1165–1188. This is calculated by replacing the alpha of the Benjamini-Hochberg procedure by alpha/sum(1/1:m)).
+  
+  # UPDATES:
+  # 1. Fitted to running also on ASV
+  # 2. PS object must be either relative or absolute abundance before being passed to STAMPR3
+  # 3. Two factors will need: 1. taxa_test_results and estimates including all taxa ranks, referring to columns not using numbers
+  # TODO: 
+  # 1. Check if it makes a difference if I use (emm_mod_CI <- confint(emm_mod_cons, adjust = "fdr", level = 0.95, type = "response")) instead of the lm CI
+  require("emmeans") # Estimated marginal means (least-squares means))
+  require("ARTool") # Aligned Rank Transform
+  require("multcomp") # Simultaneous Inference in General Parametric Models 
+  if (length(vars2test) != 1 &
+      length(vars2test) != 2)
+  {stop('This function only suppurts one or two independent variables')}
+  
+  test_expression <-
+    as.formula(paste("Abundance", paste(vars2test, collapse = " * "), sep = " ~ "))
+  
+  # physeq_rel <-
+  #   transform_sample_counts(ps_obj, function(x)
+  #     x / sum(x)) # convert to relative abundance
+  
+  if (rank == "Kingdom" | rank == "Domain" | rank == "Class" | rank == "Phylum" | rank == "Order" | rank == "Family" | rank == "Genus" | rank == "Species") {
+  physeq_glom <- tax_glom(ps_obj,
+                              rank,
+                              NArm = TRUE) # agglomerate taxa using taxonomy
+  } else if (rank == "ASV") { 
+    physeq_glom <- ps_obj 
+  } else {
+    print("Unknown taxonomic rank ")
+    break
+  }
+  
+  # Test only abundant taxa: group dataframe by rank, calculate total rel. abundance per phylum and keep only taxa above threshold
+  physeq_glom %>%
+    psmelt(.) %>% 
+    rename(OTU = "ASV") %>% 
+    group_by(!!sym(rank)) %>%
+    summarise(tot_abundance = sum(Abundance)) %>%
+    filter(tot_abundance >= threshold) %>%
+    pull(1) %>%
+    as.character() ->
+    Taxa2test
+  
+  if (rank != "ASV") { 
+  physeq_glom_abund <- # remove rare taxa
+    prune_taxa(tax_table(physeq_glom)[, rank] %in% Taxa2test, physeq_glom)
+  } else {physeq_glom_abund <- physeq_glom}
+  
+  if (length(vars2test) == 1) {# One-way test
+    cmb <- combn(levels(get_variable(physeq_glom_abund, vars2test)), 2)
+    as_tibble(matrix( # prepare results table (P and Eta)
+      NA,
+      nrow = ntaxa(physeq_glom_abund),
+      ncol = ncol(cmb) * 6  + 2, # 
+    ), .name_repair = "minimal") %>% 
+      # bind_cols(Taxon = as(tax_table(physeq_glom_abund)[, rank], "vector"), .) %>% 
+      bind_cols(as(tax_table(physeq_glom_abund), "data.frame"), .) %>% 
+      mutate_if(., is.logical, as.numeric) ->
+      taxa_test_results
+
+    colnames(taxa_test_results) <- # cannot use set_names with non-unique names
+      c(c(colnames(tax_table(physeq_glom_abund)),
+          paste(vars2test, "- P value"),
+          paste(vars2test, "- P adj."),
+          paste(vars2test, "- EtaSq"),
+          c(rbind(cmb, matrix(rep(c("Estimate diff.", "low CI", "high CI"), ncol(cmb)), ncol = ncol(cmb)))))) # this is ugly but it works well, basically c() flattens a matrix
+    
+    for (phy_id in seq(ntaxa(physeq_glom_abund))) {
+      data2test <-
+        bind_cols(Abundance = as.numeric(otu_table(physeq_glom_abund)[, phy_id]),
+                  as(sample_data(physeq_glom_abund), "data.frame"))
+      # print(tax_table(physeq_glom_abund)[phy_id, rank])
+      
+      art_mod <- art(test_expression, data = data2test)
+      #print(mod_summary <- anova(art_mod))
+      mod_summary <- anova(art_mod)
+      taxa_test_results[phy_id, str_detect(colnames(taxa_test_results), pattern = " - P value")] <- mod_summary$`Pr(>F)` # p values
+      mod_summary %>% 
+        transmute(`Part Eta Sq` = `Sum Sq`/(`Sum Sq` + `Sum Sq.res`)) ->
+        taxa_test_results[phy_id, str_detect(colnames(taxa_test_results), pattern = " - EtaSq")] # EtaSq (effect size)
+      art_mod_lm <- artlm(art_mod, vars2test) # build a linear model for ART data
+      # Compute estimated marginal means (EMMs)
+      emm_mod <- emmeans(art_mod_lm, as.formula(paste("", vars2test, sep = " ~ ")), weights = "equal")
+      
+      # Contrasts, pairwise comparisons, tests, and confidence intervals.
+      emm_mod_cons <- contrast(emm_mod, method = "pairwise", adjust = "tukey")  # adjusts only for the different levels within vars2test 
+      # (emm_mod_CI <- confint(emm_mod_cons, adjust = "fdr", level = 0.95, type = "response")) 
+      # (emm_mod_CLD <- multcomp::cld(emm_mod, alpha = 0.05, Letters = letters, adjust = "tukey")) 
+      # print("Note that the estimates aren’t as in a linear model because they are on the scale of ranks and not the data, but the p-values are useful")
+      
+      # assign pairwise results to table
+      mod_lm <- lm(test_expression, data = data2test) # run an lm model because we want the real means not the rank means!
+      emm_mod_lm <- emmeans(mod_lm, as.formula(paste("", vars2test, sep = " ~ ")), weights = "equal")
+      emm_mod_lm_cons <- contrast(emm_mod, method = "pairwise") 
+      emm_mod_lm_CI <- confint(emm_mod_lm_cons, adjust = "fdr", level = 0.95, type = "response")
+      taxa_test_results[phy_id, ncol(tax_table(physeq_glom_abund)) + 3 + seq(nrow(cmb))] <- as.list(summary(emm_mod_lm)$emmean) # base means
+      taxa_test_results[phy_id, seq(ncol(taxa_test_results), ncol(taxa_test_results) -1 + ncol(cmb))] <- as.list(summary(emm_mod_cons)$p.value) # p values
+      taxa_test_results[phy_id, "Estimate diff."] <- emm_mod_lm_CI$estimate
+      taxa_test_results[phy_id, "low CI"] <- as.list(emm_mod_lm_CI$lower.CL)
+      taxa_test_results[phy_id, "high CI"] <- as.list(emm_mod_lm_CI$upper.CL)
+      taxa_test_results[phy_id, "log2 fold change"] <- diff(log(summarise(group_by(data2test, !!sym(vars2test)), mean(Abundance))[2] + 1)[2:1, ]) # subtracting logs = fold
+      group_by(data2test, !!sym(vars2test)) %>% 
+        dplyr::select(Abundance, {{ vars2test }}) %>%  
+        pivot_wider(names_from = c({{ vars2test }}), values_from = Abundance,  values_fn = list) %>% as.list() %>% map(unlist) %>% # all this bc pivot cannot deal with unordered vectors and diff.-sized vectors 
+        expand.grid() %>% 
+        transmute(log2(!!sym(cmb[1]) + 1) - log2(!!sym(cmb[2]) + 1)) %>% 
+        summarize(across(everything(), ~ sd(.x)/sqrt(length(.x)))) -> 
+        taxa_test_results[phy_id, "l2fc SE"] # this pipe calculates call possible LFCs and then an SE from the entire set
+    }
+  } else {# Two-way test 
+    cmb <- combn(c(levels(get_variable(physeq_glom_abund, vars2test[1])), levels(get_variable(physeq_glom_abund, vars2test[2]))), 2) # just for setting the right number of columns
+    
+    sample_data(physeq_glom_abund)$Vars_combination <-  with(sample_data(physeq_glom_abund), get(vars2test[1]):get(vars2test[2]))
+    as_tibble(matrix( 
+      NA,
+      nrow = ntaxa(physeq_glom_abund),
+      ncol = sum(ncol(cmb)) + 6, 
+    ),
+    .name_repair = "minimal") %>% 
+      bind_cols(Taxon = as(tax_table(physeq_glom_abund)[, rank], "vector"), .) %>% 
+      set_names(c(rank,
+                  paste(vars2test[1], "- P"),
+                  paste(vars2test[1], "- EtaSq"),
+                  paste(vars2test[2], "- P"),
+                  paste(vars2test[2], "- EtaSq"),
+                  paste(paste(vars2test, collapse = " X "), "- P"),
+                  paste(paste(vars2test, collapse = " X "), "- EtaSq"),
+                  seq(ncol(cmb)))) %>% 
+      mutate_if(., is.logical, as.numeric) ->
+      taxa_test_results # prepare results table (P and Eta)
+    
+    as_tibble(matrix(
+      NA,
+      nrow = ntaxa(physeq_glom_abund),
+      ncol = (ncol(cmb) * 5) 
+    ),
+    .name_repair = "minimal") %>% 
+      bind_cols(Taxon = as(tax_table(physeq_glom_abund)[, rank], "vector"), .) %>% 
+      mutate_if(., is.logical, as.numeric) ->
+      taxa_test_estimates # prepare estimates table
+    
+    colnames(taxa_test_estimates) <- # cannot use set_names with non-unique names
+      c(rank, c(rbind(
+        cmb, matrix(rep(
+          c("Estimate diff.", "low CI", "high CI"), ncol(cmb)
+        ), ncol = ncol(cmb))
+      ))) # this is ugly but it works well, basically c() flattens a matrix
+    
+    for (phy_id in seq(ntaxa(physeq_glom_abund))) {
+      bind_cols(Abundance = as.numeric(otu_table(physeq_glom_abund)[, phy_id] ), as(sample_data(physeq_glom_abund), "data.frame")) %>% 
+        mutate_at(., vars2test[1],as.factor) %>% 
+        mutate_at(., vars2test[2],as.factor) %>% 
+        mutate_at(., "Vars_combination", as.factor) ->
+        data2test
+      
+      print(tax_table(physeq_glom_abund)[phy_id, rank])
+      
+      art_mod <- art(test_expression, data = data2test)
+      print(mod_summary <- anova(art_mod))
+      taxa_test_results[phy_id, c(2, 4, 6)] <-
+        as.list(mod_summary$`Pr(>F)`) # p values
+      mod_summary %>% 
+        transmute(`Part Eta Sq` = `Sum Sq`/(`Sum Sq` + `Sum Sq.res`)) %>% 
+        t() %>% 
+        as.list() ->
+        taxa_test_results[phy_id, c(3, 5, 7)]  # EtaSq (effect size)
+      
+      # Post hoc of the main effects
+      posthoc_expression <- as.formula(paste("Abundance", "Vars_combination", sep = " ~ "))
+      art_mod_lm <- artlm(art(posthoc_expression, data = data2test), "Vars_combination") # build a linear model for ART data (This only works on combined factors; see: https://cran.r-project.org/web/packages/ARTool/vignettes/art-contrasts.html). Also, this might not be generalisable for more factors than two!!
+      # Compute estimated marginal means (EMMs)
+      (emm_mod <- emmeans(art_mod_lm, as.formula(paste("~", "Vars_combination"))))       
+      # Contrasts, pairwise comparisons, tests, and confidence intervals.
+      (emm_mod_cons <- contrast(emm_mod, method = "pairwise", adjust = "tukey")) 
+      # (emm_mod_CI <- confint(emm_mod_cons, adjust = "tukey", level = 0.95, type = "response")) 
+      # (emm_mod_CLD <- cld(emm_mod, alpha = 0.05, Letters = letters, adjust = "tukey")) 
+      print("Note that the estimates aren’t as in a linear model because they are on the scale of ranks and not the data, but the p-values are useful")
+      
+      # assign pairwise results to table
+      colnames(taxa_test_results)[seq(8, 7 + ncol(cmb))] <- summary(emm_mod_cons)$contrast
+      taxa_test_results[phy_id, seq(8, 7 + length(summary(emm_mod_cons)$p.value))] <-
+        as.list(summary(emm_mod_cons)$p.value) # need to check!! (trouble is it outputs everything and not just significant ones)
+      
+      # assign estimates to table
+      mod_lm <- lm(test_expression, data = data2test) # because we want the real means not the rank means!
+      emm_mod_lm <- emmeans(mod_lm, as.formula(paste("~", vars2test[1], "*",vars2test[2])), weights = "equal")
+      # emm_mod_lm <- emmeans(mod_lm, as.formula(paste("~", "Vars_combination")), weights = "equal")
+      emm_mod_lm_cons <- contrast(emm_mod, method = "pairwise", adjust = "tukey") 
+      emm_mod_lm_CI <- confint(emm_mod_lm_cons, adjust = "fdr", level = 0.95, type = "response")
+      colnames(taxa_test_estimates)[seq(2, ncol(taxa_test_estimates), by = 5)] <-
+        str_split(emm_mod_lm_CI$contrast, " - ", simplify = TRUE)[, 1]
+      colnames(taxa_test_estimates)[seq(3, ncol(taxa_test_estimates), by = 5)] <-
+        str_split(emm_mod_lm_CI$contrast, " - ", simplify = TRUE)[, 2]
+      taxa_test_estimates[phy_id, -1] <- as.list(summary(emm_mod_lm)$emmean[match(colnames(taxa_test_estimates), with(summary(emm_mod_lm), get(vars2test[1]):get(vars2test[2])))])[-1]
+      
+      taxa_test_estimates[phy_id, seq(4, ncol(taxa_test_estimates), by = 5)] <- as.list(emm_mod_lm_CI$estimate)
+      taxa_test_estimates[phy_id, seq(5, ncol(taxa_test_estimates), by = 5)] <- as.list(emm_mod_lm_CI$lower.CL)
+      taxa_test_estimates[phy_id, seq(6, ncol(taxa_test_estimates), by = 5)] <- as.list(emm_mod_lm_CI$upper.CL)
+    }
+  }
+  
+  # Correct for FDR 
+    taxa_test_results %<>% 
+      mutate(across(ends_with("- P adj."), ~p.adjust(!!sym(paste(vars2test, "- P value")), method = p.adjust.method)))
+
+  if(!is.na(outputfile) || outputfile != '') {
+    dir.create(file.path(".", "STAMPR3_results"), showWarnings = FALSE)
+    write.csv(taxa_test_results, file = paste0("./STAMPR3_results/", outputfile, "_", rank, "_Pvals.csv"))
+    # write.csv(taxa_test_estimates, file = paste0("./STAMPR2_results/", outputfile, "_", rank, "_CI.csv"))
+  }
+  # STAMPR_tesults <- list(taxa_test_results, taxa_test_estimates)
+  return(taxa_test_results)
+}
+
+plot_STAMPR3_bar <- function(STAMPR_output = STAMPR_tesults, pair, rank = "Phylum", f_size = 14){
+  require(ggplot2)
+  require(ggthemes)
+  require(see)
+  require(cowplot)
+  if (!is.list(STAMPR_output) | length(STAMPR_output) != 2) {print("The function accepts only lists with two elements")}
+  
+  pair_number <- which(colnames(STAMPR_output[[1]]) == pair) - 3
+  pvals_col <- pair_number + 3
+  stats_col <- seq(from = 2, to = (ncol(STAMPR_output[[1]]) - 3) * 5, by = 5)[pair_number - 4]
+  
+  bind_cols(STAMPR_output[[1]][, 1], 
+            STAMPR_output[[1]][, pair] ,
+            STAMPR_output[[2]][, stats_col:(stats_col + 4)]
+  ) %>% 
+    mutate(Higher = if_else(as.vector(.[3] > .[4]), colnames(.)[3], colnames(.)[4])) %>% # determine which is of the pairs is higher
+    gather("Factor", `Mean abundance (%)`, 3:4) %>% 
+    mutate_at(c(rank, "Higher", "Factor"), ~fct_rev(.)) -> # fct_rev because coord_flip() reverses the order
+    STAMPR_df
+  tibble(
+    min = seq(
+      from = 0.5,
+      to = max(as.numeric(pull(STAMPR_df, rank))),
+      by = 1
+    ),
+    max = seq(
+      from = 1.5,
+      to = max(as.numeric(pull(STAMPR_df, rank))) + 0.5,
+      by = 1
+    )) %>% 
+    add_column(Shade = rep(c(0, 1), length.out = nrow(.))) %>% 
+    mutate_at("Shade", ~as.factor(.)) ->
+    # %>% slice(rep(1:n(), each = 2))
+    #   mutate(col = ifelse(allyrs == TRUE, 1, 0))
+    #   
+    # mutate_at("min", ~case_when(col == 1 ~ . - 0.3, 
+    # TRUE ~ .)) %>% 
+    # mutate_at("max", ~case_when(col == 1 ~ . - 0.3, 
+    # TRUE ~ .)) -> 
+    shading
+  p1 <- ggplot() +
+    geom_rect(data = shading,
+              aes(xmin = min, xmax = max, ymin = -Inf, ymax = Inf,
+                  fill = Shade, alpha = 0.1), fill = rep(c("white", "#E9EDED"), length.out = nrow(shading)), show.legend = F) + 
+    geom_col(data = STAMPR_df, 
+             mapping = aes(!! sym(rank), y = `Mean abundance (%)`, fill = Factor), 
+             width = 0.8, 
+             position = position_dodge(),
+             alpha = 2/3) + 
+    scale_y_continuous(expand = c(0, 0)) +
+    scale_x_discrete(expand = c(0, 0)) +
+    coord_flip() + 
+    geom_rangeframe(data = STAMPR_df, aes(!! sym(rank), y = `Mean abundance (%)`), sides = "b") +
+    scale_fill_manual(values = c("#238443", "#CC4C02"))  +
+    theme_tufte(base_size = f_size, base_family = "sans") +
+    theme(legend.position = "top",
+          legend.justification = 'left',
+          legend.title = element_blank()) +
+    guides(fill = guide_legend(reverse = TRUE))
+  # panel.grid.major.x = element_line(colour = "white"),
+  # panel.ontop = TRUE)
+  p2 <- ggplot() +
+    geom_rect(
+      data = shading,
+      aes(
+        xmin = min,
+        xmax = max,
+        ymin = -Inf,
+        ymax = Inf,
+        fill = Shade,
+        alpha = 0.1
+      ),
+      fill = rep(c("white", "#E9EDED"), length.out = nrow(shading)),
+      show.legend = F
+    ) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "slategray", size = 1, alpha = 2/3) + 
+    geom_errorbar(data = STAMPR_df,
+                  aes(
+                    !! sym(rank),
+                    ymin = `low CI`,
+                    ymax = `high CI`,
+                    colour = Higher),
+                  width = 0.3,
+                  alpha = 2/3
+    ) +
+    geom_point2(data = STAMPR_df,
+                aes(!! sym(rank), 
+                    y = `Estimate diff.`, 
+                    colour = Higher),
+                size = 4,
+                alpha = 2/3) +
+    scale_y_continuous(expand = c(0, 0)) +
+    scale_x_discrete(
+      expand = c(0, 0),
+      breaks = STAMPR_df[[rank]],
+      labels = formatC(deframe(STAMPR_df[, 2]), format = "e", digits = 2),
+      position = "top"
+    ) +
+    geom_rangeframe(data = STAMPR_df, aes(!! sym(rank), y = seq(
+      min(`low CI`),
+      max(`high CI`),
+      length.out = nrow(STAMPR_df)
+    )), sides = "b") +
+    scale_colour_manual(values = c("#238443", "#CC4C02"))  +
+    theme_tufte(base_size = f_size, base_family = "sans") +
+    theme(legend.position = "none", 
+          plot.title = element_text(margin = margin(10, 0, 18, 0), hjust = 0.5),
+          axis.title.y = element_text(margin = margin(t = 0, r = 0, b = 20, l = 0), angle = 180)) + # BUG: no response
+    labs(title = "95% confidence intervals", 
+         y = "Difference in mean abundance (%)",
+         x = "p-value (corrected)") +
+    coord_flip()
+  # p1 + p2 + plot_layout(widths = c(1, 2)) # doesn't look as good with patchwork but maybe in the future
+  plot_grid(p1, p2, rel_widths = c(2, 3)) + theme(plot.margin = unit(c(0.5, 0.5, 0.5, 0.5), "cm"))
+}
+
+mark_sig_ASVs <- function(STAMPR3_results, two_way = TRUE, sig_level = sig_level, LFC = LFC_thresh, vars2test = "Label") {
+  STAMPR3_results %>% 
+  {if (two_way) {
+    mutate(., Significance = if_else(get(paste(vars2test, "- P adj.")) < sig_level &
+                                       !is.na(get(paste(vars2test, "- P adj."))) &
+                                       abs(`log2 fold change`) > LFC,
+                                     "Pass",
+                                     "Fail"
+    ))
+  } else { # only positive LFC
+    mutate(., Significance = if_else(get(paste(vars2test, "- P adj.")) < sig_level &
+                                       !is.na(get(paste(vars2test, "- P adj."))) &
+                                       `log2 fold change` > LFC,
+                                     "Pass",
+                                     "Fail"
+    ))
+  }}
+}
+
+prep_STAMPR3_data <- function(STAMPR3_results, ps_obj, sig_level = alpha_thresh, LFC = LFC_thresh, rank, rare_thresh, two_way) {
+  require(dplyr)
+  require(magrittr)
+  require(phyloseq)
+  
+  if (!is.list(STAMPR3_results)) {STAMPR3_results <- list(STAMPR3_results)} # convert to list if it is not (to support a vectorised run of DESEq2)
+  
+  # group dataframe by ASV, calculate median rel. abundance
+  ps_obj %>%
+    transform_sample_counts(., function(x) x / sum(x) * 100) %>% 
+    taxa_sums(.) %>% 
+    map_dbl(~(.x / nsamples(ps_obj))) %>% 
+    enframe(name = "ASV", value = "Mean abundance (%)") -> 
+    baseMean
+  
+  Taxa_order <- order_taxa(ps_obj, rank = rank)
+
+  STAMPR3_results[[1]] %>%
+    as.data.frame() %>% 
+    { if (!"ASV" %in% colnames(.)) {rownames_to_column(., var = "ASV")} else (.) } %>% # sometimes column ASV is missing
+    left_join(., baseMean, by = "ASV") %>% # add mean abundance to results table
+    # bind_cols(., as(tax_table(ps_obj)[taxa_names(ps_obj) %in% .$ASV, ], "data.frame")) %>% # add taxnomy
+    mutate(across(rank, ~ factor(., levels = levels(pull(Taxa_order, rank))))) %>% # order taxa by abundance
+    # keep only significant & >LFC ASVs
+    # map(., ~subset(.x, get(paste(vars2test, "- P adjust.")) < alpha_thresh & lfc > LFC_thresh))
+
+    # {
+    #   if (two_way) {
+    #     mutate(., Significance = if_else(get(paste(vars2test, "- P adj.")) < sig_level &
+    #       !is.na(get(paste(vars2test, "- P adj."))) &
+    #       abs(`log2 fold change`) > LFC,
+    #     "Pass",
+    #     "Fail"
+    #     ))
+    #   } else { # only positive LFC
+    #     mutate(., Significance = if_else(get(paste(vars2test, "- P adj.")) < sig_level &
+    #       !is.na(get(paste(vars2test, "- P adj."))) &
+    #       `log2 fold change` > LFC,
+    #     "Pass",
+    #     "Fail"
+    #     ))
+    #   }
+    # } %>%
+    mutate(
+      ymin = if_else(Significance == "Pass", `log2 fold change` - `l2fc SE`, NA_real_),
+      ymax = if_else(Significance == "Pass", `log2 fold change` + `l2fc SE`, NA_real_)
+    ) -> # add error
+  STAMPR32plot
+
+  return(STAMPR32plot)
+}
+
+plot_STAMPR3 <- function(STAMPR3_results, ps_obj, sig_level = alpha_thresh, LFC = LFC_thresh, rank = "Phylum", rare_thresh = rare_thresh, two_way = TRUE, ASV_labels = FALSE, Y_val = "log2 fold change", plot_title = "") {
+  require(ggplot2)
+  require(ggrepel)
+  require(ggtext)
+  
+  STAMPR32plot <- prep_STAMPR3_data(STAMPR3_results, ps_obj, sig_level, LFC, rank, rare_thresh, two_way)
+  
+  STAMPR3_summary <- tibble(Label = c(paste0("⬆", 
+                                           sum(STAMPR32plot$`log2 fold change` > 0 & 
+                                                 STAMPR32plot$Significance == "Pass"),
+                                           " (", nrow(STAMPR32plot), ")")))
+  
+  pos <- position_jitter(width = 0.3, seed = 1)
+  
+  p <-
+    ggplot(STAMPR32plot) +
+    geom_point(aes(
+      x = !!sym(rank),
+      y = !!sym(Y_val),
+      colour = !!sym("Significance"),
+      size = !!sym("Mean abundance (%)")),
+      position = pos,
+      alpha = 1 / 3,
+      stroke = 0) +
+    geom_linerange(aes(x = !!sym(rank),
+                       y = !!sym(Y_val),
+                       ymin = ymin,
+                       ymax = ymax,
+                       colour = !!sym("Significance")),
+                   position = pos,
+                   alpha = 1/5, 
+                   show.legend = FALSE) +
+    geom_text(
+      data    = STAMPR3_summary,
+      mapping = aes(x = Inf, y = Inf, label = Label),
+      hjust   = 1.1,
+      vjust   = 1.6
+    ) +
+    labs(x = "", y = "Log<sub>2</sub> fold change", title = plot_title) +
+    labs(colour = paste("Significance at \n p <", sig_level), size = "Mean abundance (%)") +
+    theme_grey(base_size = f_size, base_family = f_name) +
+    theme(axis.text.x = element_text(angle = 45.0, vjust = 1, hjust = 1),
+          panel.grid.major.x = element_blank(),
+          panel.grid.minor.x = element_blank(),
+          axis.title.y = element_markdown(),
+          plot.title = element_markdown(size = f_size)) +
+    guides(colour = guide_legend(override.aes = list(size = 5))) +
+    # scale_colour_manual(values = c(ggpomological:::pomological_base[[7]], ggpomological:::pomological_palette[[1]])) +
+    scale_colour_manual(values = c("#2b323f", "#c03728")) +
+    scale_size_continuous(name = "Mean abundance (%)",
+                          range = c(2, 8),
+                          breaks = c(round(seq(min(STAMPR32plot$`Mean abundance (%)`), max(STAMPR32plot$`Mean abundance (%)`), length.out = 5), 1)))
+  
+  if (ASV_labels) {
+    p <- p + geom_label_repel(
+      aes(x = !!sym(rank), y = !!sym(Y_val)),
+      size = 6,
+      label = sub("Seq_([0-9]+)", "\\1", pull(STAMPR32plot[STAMPR32plot$Significance == "Pass", ], "ASV")),
+      position = pos,
+      data = STAMPR32plot[STAMPR32plot$Significance == "Pass", ],
+      # nudge_x = 0.4,
+      colour = "#4a4a4a",
+      label.size = NA, 
+      alpha = 0.75, 
+      # fontface = 'bold',
+      box.padding = 0.80,
+      point.padding = 0.5
+    )
+  }
+  return(p)
+}
+
+plot_otus_by_density <- function(ps_obj = Ps_obj_abs_noTime_l[[1]], 
+                                 ASV2plot = filter(abund_ASV_2_plot, 
+                                                   Treatment == params2plot$Treatment[1]),
+                                 relative = TRUE,
+                                 ASV_colours = ggpomological:::pomological_palette[c(2, 4, 3, 1)],
+                                 X_val = "Density..g.ml.1.", 
+                                 Y_val = "Abundance", 
+                                 shape_val = "Label",
+                                 colour_val = "Treatment",
+                                 topN = 30,
+                                 title = "ASV abundance by density"){
+  require(ggpomological)
+  require(dplyr)
+  require(phyloseq)
+  require(speedyseq)
+
+  if (relative) { ps_obj %<>% transform_sample_counts(function(x) x/sum(x) * 100) }
+  if (nrow(ASV2plot) == 0) {print("No ASVs to plot"); ggplot() + theme_void(); return()}
+  
+  ps_obj %>% 
+    prune_taxa(ASV2plot$ASV, .) %>% 
+    prune_taxa(unique(arrange(ASV2plot, desc(baseMean))$ASV)[1:topN], .) %>% 
+    # prune_taxa(names(sort(taxa_sums(.), TRUE)[1:topN]), .) %>%
+    psmelt() %>% 
+    rename(OTU = "ASV") %>%
+    arrange(., desc(Abundance)) %>% 
+    mutate(ASV = fct_inorder(ASV)) ->
+    Incorporators_df
+  
+  ggplot(Incorporators_df, aes(x = !!sym(X_val),
+                               y = !!sym(Y_val),
+                               shape = as.factor(!!sym(shape_val)),
+                               colour = as.factor(!!sym(colour_val)))) + 
+    scale_colour_manual(values = ASV_colours) +
+    # scale_colour_pomological() +
+    geom_point(alpha = 1/2, size = 3) + 
+    geom_line() +
+    facet_wrap(~ASV, scales = "free_y") +
+    guides(colour = guide_legend(title = "Day"), 
+           shape = guide_legend(title = "Label <sup>13</sup>C")) +
+    labs(x = "Density (g ml<sup>-1</sup>)",
+         title = title) +
+    theme(legend.title = element_markdown(),
+          axis.title.x = element_markdown(),
+          plot.title = element_markdown())
+  
+  
+}
+
+plot_reps_heatmap <- function(STAMPR3_df = STAMPR3_res_SIP_byTime_LFC_sig_Epi_top_df,
+                         x = "Replicate",
+                         facet_names = "Day",
+                         sample_colours = "black",
+                         HM_title = "") {
+  require(dplyr)
+  require(ggplot2)
+  require(viridis)
+  require(ggtext)
+  colors <- sample_colours
+  labels2draw <- levels(pull(STAMPR3_df, facet_names))
+  labels <- setNames(glue("<i style='colors:{colors}'>{labels2draw}</i>"), labels2draw)
+  STAMPR3_df %>%
+    # filter(Labelled == "Labelled") %>%
+    mutate(log2FoldChange = ifelse(Significance == "Passed", `log2 fold change`, NA_integer_)) %>% # retain values for labelled ASVs only
+    dplyr::select(ASV, !!sym(x), !!sym(facet_names), log2FoldChange) %>%
+    # mutate(across(ASV, ~factor(., levels = tip_order))) %>%
+    complete(., ASV) %>%
+    ggplot(., aes(!!sym(x), ASV, fill = log2FoldChange)) +
+    geom_tile(
+      colour = "white",
+      size = 0.25
+    ) +
+    # scale_fill_gradient(low = "gray", high = "darkred") +
+    scale_fill_viridis(
+      na.value = "white",
+      option = "inferno"
+    ) +
+    guides(fill = guide_legend(
+      title = "Log<sub>2</sub> fold change",
+      title.position = "top"
+    )) +
+    facet_wrap(vars(!!sym("Day")),
+               labeller = as_labeller(labels),
+               nrow = 1,
+               scales = "fixed"
+    ) +
+    theme(
+      plot.title = element_markdown(size = f_size, face = "bold"),
+      axis.text.x = element_markdown(
+        size = f_size - 6,
+        angle = 45,
+        vjust = 1,
+        hjust = 1
+      ),
+      panel.grid.major = element_blank(),
+      axis.title.y = element_blank(),
+      axis.title.x = element_markdown(size = f_size),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      strip.background = element_blank(),
+      strip.text = element_markdown(size = f_size - 2),
+      legend.key.size = unit(0.3, "cm"),
+      legend.title = element_markdown(size = f_size),
+      legend.position = "bottom",
+      legend.text = element_text(size = f_size - 2),
+      plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "cm")
+    ) +
+    ggtitle(HM_title) ->
+    HM_plot
+  return(HM_plot)
+}
+
+plot_ggtree <- function(ps_obj, 
+                        rank = "Phylum",
+                        subrank = "Order",
+                        Taxa2plot = "Actinobacteriota",
+                        l_rows = 4){
+  require(magrittr)
+  require(ggplot2)
+  require(ggtree)
+  require(RColorBrewer)
+  
+  # subset (phyloseq subset_taxa doesn't support quasiquotation)
+  ps_obj %>% 
+    tax_table() %>%
+    as("data.frame") %>%
+    rownames_to_column("ASV") %>% 
+    filter(., !!sym(rank) == Taxa2plot) %>% 
+    column_to_rownames("ASV") %>% 
+    as.matrix() %>% 
+    tax_table() ->
+    tax_table(ps_obj)
+  
+  tax_table(ps_obj) %>% 
+    as("data.frame") %>%
+    pull(subrank) %>% 
+    unique() %>% 
+    length() ->
+    n_colours
+
+  p_tree <- ggtree(ps_obj,
+                       layout = "rectangular") +
+    geom_tippoint(aes(colour = !!sym(subrank)), 
+                  size = 2, 
+                  alpha = 1/2) +
+    scale_color_manual(subrank, 
+                       values = colorRampPalette(brewer.pal(11, "Spectral"))(n_colours)) +
+    # geom_tiplab(hjust=-.3, size = 2) +
+    geom_treescale(fontsize = 2) +
+    guides(colour = guide_legend(nrow = l_rows,
+                                 byrow = TRUE,
+                                 title.position = "top")) +
+    theme_tree(legend.title = element_markdown(size = f_size - 4),
+               legend.position = "bottom", 
+               legend.key.size = unit(0.1, "cm"),
+               legend.text = element_markdown(size = f_size - 6),
+               legend.box = "vertical", 
+               legend.margin = margin(),
+               plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "cm"),
+               plot.title = element_text(size = f_size - 2)) +
+    # scale_colour_manual(values = mycolours) +
+    ggtitle(Taxa2plot)
+  return(p_tree)
+}
+
+plot_ggtree_heatmap <- function(p_tree, 
+                                ps_obj,
+                                STAMPR3_df,
+                                rank = "Phylum",
+                                Taxa2plot = "Actinobacteriota",
+                                x = "Day",
+                                facet_names = "Species",
+                                sample_colours = "black") {
+  require(dplyr)
+  require(ggplot2)
+  require(viridis)
+  require(ggtext)
+  
+  ps_obj %>% 
+    tax_table() %>%
+    as("data.frame") %>%
+    rownames_to_column("ASV") %>% 
+    filter(., !!sym(rank) == Taxa2plot) %>% 
+    column_to_rownames("ASV") %>% 
+    as.matrix() %>% 
+    tax_table() ->
+    tax_table(ps_obj)
+  
+  p_tree$data %>% 
+    arrange(y, label) %>% 
+    pull(label) %>% 
+    unique() -> tip_order
+  
+  STAMPR3_df %>% 
+    right_join(., tibble(ASV = taxa_names(ps_obj)), 
+               by  = "ASV") ->
+    STAMPR3_df_sub
+  
+colors <- sample_colours
+labels2draw <- levels(pull(STAMPR3_df_sub, facet_names))
+labels <- setNames(glue("<i style='colors:{colors}'>{labels2draw}</i>"), labels2draw)
+
+  STAMPR3_df_sub %>% 
+    # filter(Labelled == "Labelled") %>% 
+    mutate(log2FoldChange = ifelse(Significance == "Pass", `log2 fold change`, NA_integer_)) %>% # retain values for labelled ASVs only
+    dplyr::select(ASV, !!sym(x), !!sym(facet_names), log2FoldChange) %>% # keep only relevant columns
+    mutate(across(ASV, ~factor(., levels = tip_order))) %>% # sort ASV levels according to the tree tip order
+    complete(ASV, !!sym(x), !!sym(facet_names)) %>% # make sure every ASV is represented in every category of x and facet_names
+    ggplot(., aes(!!sym(x), ASV, fill = log2FoldChange)) + 
+    geom_tile(colour = "white",
+              size = 0.25) +
+    # scale_fill_gradient(low = "gray", high = "darkred") +
+    scale_fill_viridis(na.value = "white",
+                       option = "inferno") +
+    guides(fill = guide_legend(title = "Log<sub>2</sub> fold change",
+                               title.position = "top")) +
+    facet_wrap(vars(!!sym("Species")), 
+               labeller = as_labeller(labels),
+               nrow = 1) +
+    theme(axis.text.x = element_markdown(size = f_size - 6,
+                                         angle = 45, 
+                                         vjust = 1, 
+                                         hjust = 1),
+          panel.grid.major = element_blank(),
+          axis.title.y = element_blank(),
+          axis.title.x = element_markdown(size = f_size - 4),
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          strip.background = element_blank(),
+          strip.text =  element_markdown(size = f_size - 6),
+          legend.key.size = unit(0.3, "cm"),
+          legend.title = element_markdown(size = f_size - 4),
+          legend.position = "bottom",
+          legend.text = element_text(size = f_size - 6),
+          plot.margin = unit(c(0.1, 0.1, 0.1, 0.1), "cm")) ->
+    HM_plot
+  
+  return(HM_plot)
+}
+
+wrap_tree_heatmap <- function(ps_obj, 
+                                STAMPR3_df,
+                                rank = "Class",
+                                subrank = "Order",
+                                Taxa2plot = "Actinobacteria",
+                                x = "Day",
+                                facet_names = "Species",
+                                l_rows = 4,
+                                pwidth = 4,
+                                pheight = 7) {
+  p_t <- plot_ggtree(ps_obj, 
+                     rank = rank,
+                     subrank = subrank,
+                     Taxa2plot = Taxa2plot,
+                     l_rows = l_rows) 
+  p_hm <- plot_ggtree_heatmap(p_t, 
+                              ps_obj,
+                              STAMPR3_df, 
+                              rank = rank,
+                              Taxa2plot = Taxa2plot,
+                              x = x,
+                              facet_names = facet_names,
+                              sample_colours = brewer.pal(n = 11, 
+                                                              "RdYlGn")[c(1, 9)]) # viridis_pal(direction = -1, begin = 0.1, end = 0.9, option = "inferno")(length(levels(pull(STAMPR3_df, facet_names)))))
+  p_t_hm <- (p_t + p_hm) + 
+    plot_layout(widths = c(1, 1)) 
+  
+  save_figure(paste0(fig.path, "Tree_HM_", Taxa2plot), 
+              p_t_hm, 
+              pwidth = pwidth, 
+              pheight = pheight,
+              dpi = 600)
+  
+  return(p_t_hm)
+}
+```
+
+## Differential abundance modelling of SIP gradients
+Here we attempt to detect ASVs that were labelled with ^13^C using differential abundance modelling.
+Using DESeq2 [@love_moderated_2014] we compare the relative abundance of each ASV in the fractions where ^13^C-labelled RNA is expected to be found (>1.795 g ml^-1^; AKA 'heavy' fractions) to the fractions where unlabelled RNA is expected to be found (<1.795 g ml^-1^; AKA 'light' fractions). The method has been previously described in Angel et al., [-@angel_application_2018].
+
+### Setting general parameters:
+```{r}
+#| label = "general parameters",
+#| cache = T
+set.seed(2021)
+alpha_thresh <- 0.1 # only keep ASVs with a diff abundance p-value below this
+LFC_thresh <- 0  # only keep ASVs with a diff abundance LFC above this
+prev_thresh <- 3 # only keep ASVs that appear significant in at least X replicates
+abund_thresh <- 1000
+rare_thresh <- 0.0045
+rep_thresh <- 1
+vars2test <- "Label"
+ref_level <- "Unlabelled"
+data_path <- "./DADA2_pseudo/"
+Metadata_table <- "./SIP_metadata_decontam.csv"
+# Seq_table <- "DADA2.seqtab_nochim_decontam.tsv"
+# Seq_file <- "DADA2.Seqs_decontam.fa"
+Proj_name <- "Fishpond_SIP"
+Ps_file <- paste0(Proj_name, "_seq_prev_filt.Rds")
+# Tree_file <- "./Tree/DADA2_reps_seq_prev_filt.FT.tree"
+Tree_file <- "./Tree/DADA2_reps_seq_prev_filt.filtered.align.treefile"
+Var1 = "Replicate" # e.g sampling point / replicate
+Var2 = "Treatment" # e.g. a treatment or a manipulation
+Var3 = "Headspace" # e.g. a treatment/manipulation or an important covariant
+Var4 = "Label" # e.g. an important covariant
+```
+
+### Read phyloseq object
+```{r}
+#| label = "load data",
+#| cache = T
+# Load phylogenetic tree
+Tree <- read_tree(paste0(data_path, Tree_file))
+
+# load and merge  phyloseq object
+readRDS(paste0(data_path, Ps_file)) -> Ps_obj_SIP
+
+# load and merge  phyloseq object
+readRDS(paste0(data_path, Ps_file)) %>% 
+  merge_phyloseq(.,
+                 phy_tree(Tree)
+  ) -> Ps_obj_SIP 
+
+read_delim(Metadata_table,
+           delim = ",",
+           trim_ws = TRUE) %>% 
+  # mutate(`16S_copies (undiluted RNA)` = replace(`16S_copies (undiluted RNA)`, which(`16S_copies (undiluted RNA)` == 0 | is.na(`16S_copies (undiluted RNA)`)), 1)) %>% # add pseudo count
+  filter(sample_ID %in% sample_names(Ps_obj_SIP)) %>% # remove metadata rows if the samples did not go through qual processing
+  mutate(to_names = sample_ID, .before = 1) %>% 
+  # mutate(across(c(!!sym(Var2), 
+  #                 !!sym(Var3),
+  #                 !!sym(Var4)), ~factor(.))) %>% # you might want to wait with that until after you've filtered out some taxa and samples in 03_Taxonomical_analysis.Qmd
+  mutate(Density.zone = factor(ifelse(Density..g.ml.1. > 1.71, "Heavy", "Light"), levels = c("Light", "Heavy"))) %>% 
+  identity() ->
+  Metadata
+
+sample_data(Ps_obj_SIP) <- Metadata
+
+# readRDS(paste0(data_path, Ps_file)) %>% 
+#   merge_phyloseq(.,
+#                  phy_tree(Tree)
+#   ) -> Ps_obj_SIP 
+
+# Save filtered phyloseq object for PICRUSt
+#Ps_obj_Labelled <- subset_samples(Ps_obj_SIP, Label == 'Labelled')
+#seqs <- refseq(Ps_obj_Labelled)
+#otab <- otu_table(Ps_obj_Labelled)
+#write.table(seqs, "Ps_obj_Labelled_seqs.tsv", quote=FALSE)
+#write.table(otab, "Ps_obj_Labelled_table.tsv", quote=FALSE,sep="\t")
+# Then, run the seqs file through this one liner to clean it up and create a fasta file.
+# grep -v '^x' Ps_obj_Labelled_seqs.tsv | awk '{print ">"$1"\n"$2}' > Ps_obj_Labelled_seqs.fa; rm Ps_obj_Labelled_seqs.tsv
+
+sample_data(Ps_obj_SIP)$Group <- factor(paste0(sample_data(Ps_obj_SIP)$Label, sample_data(Ps_obj_SIP)$Density.zone))
+
+# sample_data(Ps_obj_SIP)$Day <- factor(sample_data(Ps_obj_SIP)$Day, levels = c("3", "7", "14", "21"))
+sample_data(Ps_obj_SIP)$Label <- factor(sample_data(Ps_obj_SIP)$Label, levels = c("Labelled", "Unlabelled")) # Reference level
+sample_data(Ps_obj_SIP)$Treatment <- factor(sample_data(Ps_obj_SIP)$Treatment, levels = c("Anoxic", "Oxic"))
+sample_data(Ps_obj_SIP)$Fraction.no. <- factor(sample_data(Ps_obj_SIP)$Fraction.no., levels = c("2", "3", "4", "5", "6", "7", "8", "9", "10", "11"))
+
+# remove samples without qPCR data
+Ps_obj_SIP %<>% 
+  subset_samples(!is.na(X16S.copies))
+
+# Mark rare taxa
+Ps_obj_SIP %<>% mark_rare_taxa(., rank = "Phylum", rare_thresh = rare_thresh)
+
+# Make relative qPCR values
+Ps_obj_SIP %>%
+  get_variable() %>% 
+  group_by(!!sym(Var2), !!sym(Var3), !!sym(Var4), Replicate) %>%
+  mutate(qPCR_fraction = X16S.copies/sum(X16S.copies) * 10^6) ->
+  sample_data(Ps_obj_SIP)
+
+Ps_obj_abs <- Ps_obj_SIP
+
+otu_table(Ps_obj_abs) %<>%
+  transform_sample_counts(., function(x) x / sum(x) * 100) %>%
+  t() %>%
+  as("matrix") %>%
+  as.data.frame() %>%
+  map2_dfc(., get_variable(Ps_obj_abs, "qPCR_fraction") , `*`) %>%
+  data.frame(., row.names = taxa_names(Ps_obj_abs)) %>%
+  rename_all(~sample_names(Ps_obj_abs)) %>% 
+  t() %>%
+  round() %>% 
+  otu_table(., taxa_are_rows = FALSE)
+# Ps_obj_abs <- Ps_obj_SIP # we will use the raw reads for now
+
+Ps_obj_abs %>%
+  scale_libraries(round = "round") ->
+  Ps_obj_abs_scaled
+```
+### Plot the SIP gradients
+First I'll plot the 16S copy numbers vs density
+```{r}
+#| label = "plot SIP fractions",
+#| cache = T,
+#| fig.height = 8,
+#| fig.width = 10,
+
+get_variable(Ps_obj_abs) %>% 
+  mutate(qPCR_fraction = qPCR_fraction/10^4) %>% # bring it back from ppm to %
+  mutate(Rep_label = paste(Replicate, Label)) %>% 
+  mutate(Rep_label = factor(recode(Rep_label, 
+                            `1 Labelled` = "1", 
+                            `2 Labelled` = "2", 
+                            `3 Labelled` = "3",
+                            `4 Unlabelled` = "Unlabelled"),
+                            levels = c("Unlabelled", "1", "2", "3"))) ->
+  # mutate(Species = recode_factor(Species, `Epibolus pulchripes` = "*Epibolus pulchripes*", `Glomeris connexa` = "*Glomeris connexa*"))->
+  qPCR_df
+plot_SIP_fractions(qPCR_df, colour = "Rep_label", group = "Label", facet.arg1 = "Headspace", facet.arg2 = "Treatment", xticks = seq(1.67, 1.78, 0.02))
+```
+
+### Beta Diversity Join Analysis
+Let us look first at the dissimilarity in community composition between the different fractions. If the labelling was strong enough we should see a deviation of (some of) the heavy fractions from the light ones. However, a lack of a significant deviation does not mean unsuccessful labelling because if only a small minority of the community was labelled we might not see it here (but we will, hopefully, see it using DESeq2 modelling).
+
+```{r}
+#| label = "beta div joint",
+#| cache = T,
+#| eval = F
+
+# Join analysis
+plot_lib_dist(Ps_obj_abs)
+
+(mod0 <- adonis2(vegdist(otu_table(Ps_obj_abs), method = "horn") ~ Library.size,
+  data = get_variable(Ps_obj_abs),
+  permutations = 999
+))
+
+
+(mod1 <- adonis2(vegdist(otu_table(Ps_obj_abs), method = "horn") ~ Treatment * Headspace,
+  data = get_variable(Ps_obj_abs),
+  permutations = 999
+)) 
+
+plot_lib_dist(Ps_obj_abs_scaled)
+
+(mod0.2 <- adonis2(vegdist(otu_table(Ps_obj_abs_scaled), method = "horn") ~ Library.size,
+  data = get_variable(Ps_obj_abs_scaled),
+  permutations = 999
+))
+
+(mod2 <- adonis2(vegdist(otu_table(Ps_obj_abs_scaled), method = "horn") ~ Treatment * Headspace,
+  data = get_variable(Ps_obj_abs_scaled),
+  permutations = 999
+))
+
+
+(mod3 <- adonis2(vegdist(otu_table(Ps_obj_abs_scaled), method = "horn") ~ Treatment * Headspace + Treatment:Density.zone,
+  data = get_variable(Ps_obj_abs_scaled),
+  permutations = 999
+))
+
+Treatment_disp <- betadisper(vegdist(otu_table(Ps_obj_abs), method = "horn"), get_variable(Ps_obj_abs, "Treatment"))
+permutest(Treatment_disp)
+plot(Treatment_disp)
+
+Headspace_disp <- betadisper(vegdist(otu_table(Ps_obj_abs), method = "horn"), get_variable(Ps_obj_abs, "Headspace"))
+permutest(Headspace_disp)
+plot(Headspace_disp)
+
+Density_disp <- betadisper(vegdist(otu_table(Ps_obj_abs), method = "horn"), get_variable(Ps_obj_abs, "Density.zone"))
+permutest(Density_disp)
+plot(Density_disp)
+```
+
+```{r}
+#| label = "ordinations",
+#| fig.height = 12,
+#| cache = T,
+#| eval = F
+Ord <- ordinate(Ps_obj_abs_scaled, "CAP", "horn", 
+                formula =  ~ Treatment + Headspace + Treatment:Density.zone)
+explained <- as.numeric(format(round(eigenvals(Ord)/sum(eigenvals(Ord)) * 100, 1), nsmall = 1))
+Ord_plt <- plot_ordination(Ps_obj_abs_scaled, Ord, type = "Sample.no.", color = "Label", justDF = TRUE)
+
+p_ord_joint <- ggplot(Ord_plt) +
+  geom_point(aes(
+               x = CAP1,
+               y = CAP2,
+               color = Label,
+               size = Density..g.ml.1.,
+               shape = Treatment
+             ), alpha = 2 / 3) +
+  guides(colour = guide_legend(title = "Labelling"), 
+         size = guide_legend(title = "Density (g ml<sup>-1</sup>)"),
+         shape = guide_legend(title = "Treatment")) +
+  scale_colour_locuszoom() + 
+  # scale_colour_manual(values = Gradient.colours) +
+  # scale_fill_manual(values = Gradient.colours, guide = "none") +
+  labs(x = sprintf("CAP1 (%s%%)", explained[1]),
+  y = sprintf("CAP2 (%s%%)", explained[2])) +
+  coord_fixed(ratio = sqrt(explained[2] / explained[1])) +
+   theme(legend.justification = "top",
+         legend.title = element_markdown(size = 11)
+         ) +
+  scale_size_continuous(breaks = round(c(seq(min(Ord_plt$Density..g.ml.1.), 
+                                       max(Ord_plt$Density..g.ml.1.), 
+                                       length.out = 5), 
+                                   1), 4),
+                        range = c(0.1, 5)) +
+  facet_grid(Treatment ~ Headspace) +
+  ggtitle("Joint analysis") +
+  NULL
+p_ord_joint
+# save_figure(paste0(fig.path, "Oridnation"),
+#             p_ord_joint,
+#             pwidth = 10,
+#             pheight = 8,
+#             dpi = 600)
+# 
+# knitr::include_graphics(paste0(fig.path, "Oridnation", ".png"))
+```
+
+### Subset the dataset
+Because the DESeq2 models will be run on each gradient separately, we need to subset the phyloseq object. This is easily done using `HTSSIP::phyloseq_subset` [@youngblut_htssip_2018]
+```{r}
+#| label = "subset dataset",
+#| cache = T
+# split, ignore XX (for labelled ASV plots)
+
+Ps_obj_abs %<>% # "Roey076-E3-2_S76", 
+  # subset_samples(!(merged_sample_name %in% c("Roey120-E2-9_S120", "Roey121-E3-8_S121", "Roey129-E3-9_S129", "Roey103-E1-6_S103", "Roey113-4-5_S106"))) %>% 
+  prune_samples(!sample_names(.) %in% c("A3-8", "A4-7", "A4-10", "B1-10", "C4-4", "C4-5", "D1-2", "D2-5", "D2-6", "D3-4", "D3-5"), .)
+
+test_expr_1 <- "(Treatment == '${Treatment}' & Headspace == '${Headspace}' & Label == 'Unlabelled') | (Treatment == '${Treatment}' & Headspace == '${Headspace}'  & Label == '${Label}')"
+params_1 <- get_treatment_params(Ps_obj_abs, c("Treatment",
+                                               "Headspace",
+                                               "Label"),
+                                 "Label != 'Unlabelled'")
+# Generate a list of subsetted phyloseq objects
+Ps_obj_abs %>% 
+  # subset_samples(Density.zone == "Heavy") %>%
+  phyloseq_subset(., params_1, test_expr_1) %>% 
+  map(., ~filter_taxa(.x, function(y) sum(y) > 0, TRUE)) %>% # remove 0-summed ASVs
+  rep(., 3) -> # replicate the list by the number of reps, we will then remove the replicates within each item
+  Ps_obj_abs_noTime_l
+
+# Keep only one replicate plus the unlabelled control in each ps obj
+Ps_obj_abs_noTime_l[1:2] %>% # Ps_obj_abs_noTime_l[1:4] %>% 
+  map(., ~subset_samples(.x, Label == "Unlabelled" | Replicate == 1)) ->
+  Ps_obj_abs_noTime_l_R1
+names(Ps_obj_abs_noTime_l_R1) %<>%
+  map(., ~paste(.x, "1")) 
+
+Ps_obj_abs_noTime_l[3:4] %>% #Ps_obj_abs_noTime_l[5:8] %>% 
+  map(., ~subset_samples(.x, Label == "Unlabelled" | Replicate == 2)) ->
+  Ps_obj_abs_noTime_l_R2
+names(Ps_obj_abs_noTime_l_R2) %<>%
+  map(., ~paste(.x, "2")) 
+
+Ps_obj_abs_noTime_l[5:6] %>% #Ps_obj_abs_noTime_l[9:12] %>% 
+  map(., ~subset_samples(.x, Label == "Unlabelled" | Replicate == 3)) ->
+  Ps_obj_abs_noTime_l_R3
+names(Ps_obj_abs_noTime_l_R3) %<>%
+  map(., ~paste(.x, "3")) 
+
+# rejoin all lists
+Ps_obj_abs_noTime_l <- c(Ps_obj_abs_noTime_l_R1, Ps_obj_abs_noTime_l_R2, Ps_obj_abs_noTime_l_R3)
+
+names(Ps_obj_abs_noTime_l) %>% 
+  map(., ~str_remove_all(.x, ".*\\s\\|\\s")) %>% 
+  map(., ~str_remove_all(.x, "\\(|\\)|Treatment == |Headspace == |Label == |'| \\s\\s")) # %>% 
+  # map(., ~str_replace_all(.x, "& ([0-9]+) ", "& \\1 d & ")) 
+
+# Order by name
+Ps_obj_abs_noTime_l %<>% 
+  .[order(names(.))]
+
+# split, include time points (for ANCOMBC modelling) (between gradient comparison)
+test_expr_2 <- "(Treatment == '${Treatment}' &  Headspace == '${Headspace}') | (Treatment == '${Treatment}' & Headspace == '${Headspace}')"
+# test_expr_2 <- "(Species == '${Species}' &  Day == '${Day}' & Replicate == '${Replicate}' ) | (Species == '${Species}' & Day == '${Day}' & Replicate == '${Replicate}' )"
+
+params_2 <- get_treatment_params(Ps_obj_abs, c("Treatment", 
+                                   "Headspace"))
+
+# params_2 <- get_treatment_params(Ps_obj_abs, c("Species", 
+#                                    "Day",
+#                                    "Replicate"))
+
+# Generate a list of subsetted phyloseq objects
+Ps_obj_abs %>% 
+  # subset_samples(Density.zone == "Heavy") %>% 
+  phyloseq_subset(., params_2, test_expr_2) %>% 
+  map(., ~filter_taxa(.x, function(y) sum(y) > 0, TRUE)) %>% # remove 0-summed ASVs
+  rep(., 3) -> # replicate the list by the number of reps, we will then remove the replicates within each item
+  Ps_obj_abs_byTH_l
+
+# Keep only one replicate plus the unlabelled control in each ps obj
+Ps_obj_abs_byTH_l_R1 <- Ps_obj_abs_byTH_l[1:2] # Ps_obj_abs_byTH_l[1:4] 
+Ps_obj_abs_byTH_l_R1 %<>% 
+  map(., ~subset_samples(.x, Label == "Unlabelled" | Replicate == 1)) 
+names(Ps_obj_abs_byTH_l_R1) %<>%
+  map(., ~paste(.x, "R1")) 
+
+Ps_obj_abs_byTH_l_R2 <- Ps_obj_abs_byTH_l[3:4] # Ps_obj_abs_byTH_l[5:8]
+Ps_obj_abs_byTH_l_R2 %<>% 
+  map(., ~subset_samples(.x, Label == "Unlabelled" | Replicate == 2)) 
+names(Ps_obj_abs_byTH_l_R2) %<>%
+  map(., ~paste(.x, "R2")) 
+
+Ps_obj_abs_byTH_l_R3 <- Ps_obj_abs_byTH_l[5:6] %<>% #  Ps_obj_abs_byTH_l[9:12]
+  map(., ~subset_samples(.x, Label == "Unlabelled" | Replicate == 3)) 
+names(Ps_obj_abs_byTH_l_R3) %<>%
+  map(., ~paste(.x, "R3")) 
+
+# rejoin all lists
+Ps_obj_abs_byTH_l <- c(Ps_obj_abs_byTH_l_R1, Ps_obj_abs_byTH_l_R2, Ps_obj_abs_byTH_l_R3)
+
+names(Ps_obj_abs_byTH_l) %<>%
+  map(., ~str_remove_all(.x, ".*\\|\\s")) %>%
+  map(., ~str_remove_all(.x, "\\(|\\)|Treatment == | Headspace ==| & Label == .*|'")) 
+
+# Order by name
+Ps_obj_abs_byTH_l %<>% 
+  .[order(names(.))]
+```
+
+
+### Differential abundance models
+```{r}
+#| label = "STAMPR models by time",
+#| cache = T
+
+filter_ASVs_by_prevalence <- function (ps = ps_obj, abund_thresh = 10, prev_thresh = 6, var2split = vars2test) {
+  # Filter ASVs by count number and presence in a phyloseq object
+  trans <- FALSE
+  if(taxa_are_rows(ps)) {
+    trans <- TRUE
+    ps <- t(ps)}
+  
+  if(!is.na(var2split) || var2split != '') {
+    split_levels <- as.character(unique(get_variable(ps, var2split)))
+
+    ASV2keep <- taxa_names(ps) %in% taxa_names(ps)
+    names(ASV2keep) <- taxa_names(ps)
+    for (i in seq(length(split_levels))){
+      split_level <<- split_levels[i] # this is ridiculous but otherwise subset_samples() fails to see split_level
+      split_ps <- subset_samples(ps, get(var2split) == split_level)
+      otu_tab <- as(otu_table(split_ps), "matrix")
+      ASV2keep <- ASV2keep & (colSums(otu_tab >= abund_thresh) >= prev_thresh)
+      #print(keep)
+    }
+
+  } else {
+    otu_tab <- as(otu_table(ps), "matrix")
+    ASV2keep <- colSums(otu_tab >= abund_thresh) >= prev_thresh
+    #print(keep)
+  }
+  
+  otu_tab <- as(otu_table(ps), "matrix")
+  otu_tab <- otu_tab[, ASV2keep]
+  otu_table(ps) <- otu_table(otu_tab, taxa_are_rows = FALSE)
+  if(trans) {ps <- t(ps)}
+  return(ps)
+}
+
+# filter by prevalence
+Ps_obj_abs_byTH_l %<>% mclapply(., 
+                                   function(x) {filter_ASVs_by_prevalence(ps = x, 
+                                                                        abund_thresh = abund_thresh, 
+                                                                        prev_thresh = 3,
+                                                                        var2split = vars2test)}, 
+                                   mc.cores = length(Ps_obj_abs_byTH_l)) 
+
+# Ps_obj_abs_byTH_l[[4]] %>%
+#   # subset_samples(Long_name == "Epibolus pulchripes Day 21 replicate 3") %>%
+#   otu_table() %>%
+#   as("matrix") %>%  t() %>% as.data.frame() %>% rownames_to_column("ASV") %>% View() # colnames %>% sort()
+# #
+
+# Keep only "heavy" fractions
+Ps_obj_abs_byTH_l %<>% 
+  map(., ~subset_samples(.x, Density.zone == "Heavy")) %>% 
+  map(., ~filter_taxa(.x, function(y) sum(y) > 0, TRUE)) # remove 0-count ASVs
+
+# # Mark rare taxa
+# Ps_obj_abs_byTime_l %<>% 
+#   map(., ~mark_rare_taxa(.x, rank = "Phylum", rare_thresh = rare_thresh))
+
+# STAMPR3(Ps_obj_abs_byTime_l[[8]], vars2test = vars2test, threshold = 0.05, outputfile = "")
+
+
+STAMPR3_SIP_byTime_l <- mclapply(Ps_obj_abs_byTH_l, 
+                                     function(x) {STAMPR3(x, 
+                                                          vars2test = vars2test, 
+                                                          threshold = 0.05, 
+                                                          outputfile = "")}, 
+                                     mc.cores = length(Ps_obj_abs_byTH_l)) # run STAMPR3 pipeline
+
+saveRDS(STAMPR3_SIP_byTime_l, file = paste0("./", Proj_name, "_STAMPR3_between.Rds"))
+
+
+STAMPR3_SIP_byTime_l %<>% mclapply(., function(x) {mark_sig_ASVs(x,
+                                                                 two_way = F,
+                                                                 sig_level = alpha_thresh, 
+                                                                 LFC = LFC_thresh, 
+                                                                 vars2test = "Label")})
+
+# Store labelled ASVs above LFC_thresh and above prev_thresh and save them to a file
+STAMPR3_SIP_byTime_l %>% 
+  # map(., ~subset(.x, get(paste(vars2test, "- P adj.")) < alpha_thresh & `log2 fold change` > LFC_thresh)) %>% # only significant ones
+  map(., ~rownames_to_column(.x, "ASV")) %>% 
+  map(., ~subset(.x, Significance == "Pass")) %>% # only significant ones
+  map_df(., ~as.data.frame(.x), .id = "Comparison") %>%
+  # map(., ~as.data.frame(.x)) %>% 
+  # bind_rows(., .id = "Comparison") %>% 
+  arrange(Comparison, desc(Labelled)) %>% 
+  separate(., "Comparison" ,c(Var2, Var3, Var1), sep = " & ", remove = FALSE) %>% 
+  separate(., "Headspace" ,c(Var3, Var1), sep = " ", remove = FALSE) %>% 
+  # filter the results and keep only ASVs that appear in at least prev_thresh replicate from each species 
+  group_by(ASV, !!sym(Var3)) %>% # group by species
+  mutate(ASV_count = n()) %>% # count ASV occurance 
+  # filter(ASV_count > prev_thresh) %>% # keep only those that appear in more than prev_thresh samples per species
+  ungroup() %T>% 
+  write_tsv(., file = paste0("STAMPR3_byTime_a-", alpha_thresh, "_", LFC_thresh, "_prev.tsv")) ->
+  STAMPR3_res_SIP_byTime_sig_prev_df
+
+# Make a new list of STAMPR3 results with means across replicates
+STAMPR3_SIP_byTime_l %>% 
+  # map(., ~as.data.frame(.x)) %>% 
+  map(., ~rownames_to_column(.x, "ASV")) %>% 
+  map_df(., ~as.data.frame(.x), .id = "Comparison") %>%
+  arrange(Comparison, desc(Labelled)) %>% 
+  separate(., "Comparison" ,c(Var2, Var3, Var1), sep = " & ", remove = FALSE) %>% 
+  separate(., "Headspace" ,c(Var3, Var1), sep = " ", remove = FALSE) %>% 
+  group_by(ASV, !!sym(Var3)) %>% # group by species
+  mutate(ASV_count = n()) %>% # count ASV occurrence 
+  mutate(sig_log = if_else(Significance == "Pass", TRUE, FALSE)) %>% # make a logical variable from significance
+  group_by(Treatment, Headspace, ASV, Phylum, Class) %>% 
+  summarise(`log2 fold change` = mean(`log2 fold change`), 
+            `l2fc SE` = mean(`l2fc SE`), 
+            `Label - P value` = min(`Label - P value`),
+            `Label - P adj.` = min(`Label - P adj.`),
+            ASV_count = mean(ASV_count),
+            count_per_group = n(), # this is ASV count but per group from group_by
+            Significance = if_else(purrr::reduce(sig_log, `+`) >= rep_thresh, "Pass", "Fail") # only keep ASV that are significant in >= rep_thresh replicates per group
+            ) %>%  # the names need to be fixed with glue
+  # mutate(Significance = if_else(get(paste(vars2test, "- P adj.")) < sig_level &
+  #                                      !is.na(get(paste(vars2test, "- P adj."))) &
+  #                                      abs(`log2 fold change`) > LFC &
+  #                                 ASV_count > prev_thresh, "Pass", "Fail")) %>% # sig ASV only those that appear in more than prev_thresh gradients per species
+   
+  arrange(Treatment, Headspace) %T>%
+  write_tsv(., file = paste0("STAMPR3_byTime_a-", alpha_thresh, "_", LFC_thresh, "_prev_concensus.tsv")) %>% # save to file
+  assign("STAMPR3_res_SIP_byTime_sig_prev_con_df",.,envir = .GlobalEnv) %>% # also save to data frame
+  group_by(Treatment, Headspace) %>% 
+  group_split() ->
+  STAMPR3_res_SIP_byTime_prev_l
+# 
+STAMPR3_res_SIP_byTime_prev_l %>%
+  map(., ~transmute(.x, name = paste(Treatment, Headspace))[1, ]) %>% 
+  map(., ~pull(.x)) -> 
+  # map(., ~str_remove(.x, " & [0-9]$")) ->
+  names(STAMPR3_res_SIP_byTime_prev_l)
+```
+
+
+#### Inspect results
+```{r}
+#| label = "vis DES res",
+#| cache = T
+STAMPR3_res_SIP_byTime_sig_prev_df %>% 
+  # get_variable() %>%
+  select_if(is.numeric) %>% 
+  vis_value()
+
+STAMPR3_res_SIP_byTime_sig_prev_df %>% 
+  # get_variable() %>% 
+  select_if(is.numeric) %>% 
+  vis_cor()
+```
+
+#### Plot differential abundance models
+```{r}
+#| label = "plot DESeq2 models",
+#| fig.height = 14,
+#| fig.width = 12,
+#| cache = T
+
+# ps_obj <- Ps_obj_abs
+# DESeq_results <- DESeq_res_SIP_byTime_LFC_l[12]
+# plot_DESeq(DESeq_results, ps_obj, plot_title = names(DESeq_results))
+
+
+# plot_STAMPR3(STAMPR3_SIP_byTime_l[1], Ps_obj_abs, two_way = "FALSE", plot_title = names(STAMPR3_SIP_byTime_l[1]))
+
+STAMPR3_plots <- map(seq(length(STAMPR3_SIP_byTime_l)), 
+                        ~plot_STAMPR3(STAMPR3_SIP_byTime_l[.x],
+                                    Ps_obj_abs, 
+                                    two_way = "FALSE",
+                                    plot_title = names(STAMPR3_SIP_byTime_l[.x])))
+STAMPR3_plots
+
+
+
+Epibolus_STAMPR3 <- ((STAMPR3_plots[[1]] +
+                      theme(legend.position = "none") +
+                      theme(axis.text.x = element_blank()) +
+                      ylim(-10, 10)) +
+                     (STAMPR3_plots[[2]] +
+                        theme(legend.position = "none",
+                              axis.text.x = element_blank(),
+                              axis.title.y = element_blank()) +
+                        ylim(-10, 10)) +
+                     (STAMPR3_plots[[3]] +
+                        theme(legend.position = "none",
+                              axis.text.x = element_blank(),
+                              axis.title.y = element_blank()) +
+                        ylim(-10, 10)) +
+                     (STAMPR3_plots[[4]] +
+                        theme(legend.position = "none") +
+                        ylim(-10, 10)) +
+                     (STAMPR3_plots[[5]] +
+                        theme(legend.position = "none") +
+                        ylim(-10, 10)) +
+                     (STAMPR3_plots[[6]] +
+                        theme(legend.position = "none") +
+                        ylim(-10, 10)) +
+                     plot_layout(ncol = 3, guides = "collect") &
+                     theme(legend.position = 'bottom'))
+# 
+# 
+save_figure(paste0(fig.path, "Epibolus_all_STAMPR3"),
+            Epibolus_STAMPR3,
+            pwidth = 14,
+            pheight = 12,
+            dpi = 600)
+# 
+# knitr::include_graphics(paste0(fig.path, "Epibolus_all_STAMPR3", ".png"))
+# 
+# Glomeris_STAMPR3 <- ((STAMPR3_plots[[19]] + 
+#                       theme(legend.position = "none") +
+#                       theme(axis.text.x = element_blank()) +
+#                       ylim(-10, 10)) +
+#                      (STAMPR3_plots[[20]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank(), 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[21]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank(), 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[22]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[23]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank(), 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[24]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank(), 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[13]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[14]] + 
+#                         theme(legend.position = "none",
+#                               axis.text.x = element_blank(), 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[15]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank(), 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[16]] + 
+#                         theme(legend.position = "none") +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[17]] + 
+#                         theme(legend.position = "none",
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      (STAMPR3_plots[[18]] + 
+#                         theme(legend.position = "none", 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 10)) +
+#                      plot_layout(ncol = 3, guides = "collect") & 
+#                      theme(legend.position = 'bottom'))
+# 
+# save_figure(paste0(fig.path, "Glomeris_STAMPR3"), 
+#             Glomeris_STAMPR3, 
+#             pwidth = 14, 
+#             pheight = 12,
+#             dpi = 600)
+# 
+# knitr::include_graphics(paste0(fig.path, "Glomeris_STAMPR3", ".png"))
+
+# STAMPR3_plots_con <- map(seq(length(STAMPR3_res_SIP_byTime_prev_l)), 
+#                         ~plot_STAMPR3(STAMPR3_res_SIP_byTime_prev_l[.x],
+#                                     Ps_obj_abs, 
+#                                     two_way = "FALSE",
+#                                     plot_title = names(STAMPR3_res_SIP_byTime_prev_l[.x])))
+# 
+# All_STAMPR3 <- ((STAMPR3_plots_con[[3]] + 
+#                       theme(legend.position = "none") +
+#                       theme(axis.text.x = element_blank()) +
+#                       ylim(-10, 15)) +
+#                      (STAMPR3_plots_con[[4]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank(), 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 15)) +
+#                      (STAMPR3_plots_con[[1]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank(), 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 15)) +
+#                      (STAMPR3_plots_con[[2]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank()) +
+#                         ylim(-10, 15)) +
+#                   (STAMPR3_plots_con[[7]] + 
+#                         theme(legend.position = "none", 
+#                               axis.text.x = element_blank(), 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 15)) +
+#                      (STAMPR3_plots_con[[8]] + 
+#                         theme(legend.position = "none") +
+#                         ylim(-10, 15)) +
+#                      (STAMPR3_plots_con[[5]] + 
+#                         theme(legend.position = "none",
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 15)) +
+#                      (STAMPR3_plots_con[[6]] + 
+#                         theme(legend.position = "none", 
+#                               axis.title.y = element_blank()) +
+#                         ylim(-10, 15))+
+#                      plot_layout(ncol = 4, guides = "collect") & 
+#                      theme(legend.position = 'bottom'))
+# 
+# save_figure(paste0(fig.path, "All_STAMPR3"), 
+#             All_STAMPR3, 
+#             pwidth = 14, 
+#             pheight = 12,
+#             dpi = 600)
+# 
+# knitr::include_graphics(paste0(fig.path, "All_STAMPR3", ".png"))
+```
+
+#### Plot labelled ASVs
+```{r}
+#| label = "plot labelled ASVs",
+#| fig.height = 12,
+#| fig.width = 16,
+#| cache = T
+# plot_combinations <- crossing(Species = c("Epibolus pulchripes", "Glomeris connexa"))
+
+
+params2plot <- get_treatment_params(Ps_obj_abs, c("Treatment",
+                                               "Label",
+                                               "Replicate"),
+                                 "Label != 'Unlabelled'")
+
+Ps_obj_abs %>%
+  transform_sample_counts(., function(x) x / sum(x) * 100) %>% 
+  taxa_sums(.) %>% 
+  map_dbl(~(.x / nsamples(Ps_obj_abs))) %>% 
+  enframe(name = "ASV", value = "baseMean") -> 
+  baseMean
+
+# STAMPR3_res_SIP_byTime_sig_prev_df %>% 
+#   group_by(ASV) %>%
+#   left_join(., baseMean, by = "ASV") %>% # add mean abundance to results table
+#   mutate(tot_mean_abund = mean(baseMean)) %>% 
+#   filter(tot_mean_abund > 0.01) %>% 
+#   group_by(ASV, !!sym(Var3)) %>%
+#   mutate(ASV_count = n()) %>% 
+#   filter(ASV_count > prev_thresh) %>%
+#   ungroup() %>% View
+#   # add here a filter for only ASVs labelled in at least two time points
+#   mutate(across(all_of(Var1), ~as.numeric(.))) -> # make Replicate numeric
+#   abund_ASV_2_plot
+
+STAMPR3_res_SIP_byTime_sig_prev_con_df %>% 
+  group_by(ASV) %>%
+  left_join(., baseMean, by = "ASV") %>% # add mean abundance to results table
+  mutate(tot_mean_abund = mean(baseMean)) %>% 
+  filter(tot_mean_abund > 0.01) %>%
+  filter(Significance == "Pass") %>% 
+  group_by(ASV, !!sym(Var3)) %>%
+  # mutate(ASV_count = n()) %>% 
+  # filter(count_per_group > prev_thresh) %>%
+  ungroup() -> # make Replicate numeric
+  abund_ASV_2_plot
+  
+# Labelled_ASVs <- map(seq(length(Ps_obj_abs_noTime_l)), ~plot_otus_by_density(Ps_obj_abs_noTime_l[[.x]], 
+#                      ASV2plot = filter(abund_ASV_2_plot, Species == params2plot$Species[.x], Replicate == params2plot$Replicate[.x]))) # 
+
+Labelled_ASVs <- map(seq(length(Ps_obj_abs_noTime_l)), ~plot_otus_by_density(Ps_obj_abs_noTime_l[[.x]],
+                     ASV2plot = filter(abund_ASV_2_plot, 
+                                       Treatment == params2plot$Treatment[.x]), 
+                     relative = TRUE, 
+                     title = names(Ps_obj_abs_noTime_l[.x]))) #
+
+map(seq(length(Ps_obj_abs_noTime_l)), 
+    ~save_figure(paste0(fig.path, "Labelled_ASVs_", paste(params2plot$Species[.x], params2plot$Replicate[.x], sep = "_")), 
+                 Labelled_ASVs[[.x]], 
+                 pwidth = 16, 
+                 pheight = 12,
+                 dpi = 500))
+
+plots2display <- list.files(path = paste0(fig.path), 
+                    pattern = "^Labelled_ASVs_(.*).png$",
+                    full.names = TRUE)
+
+knitr::include_graphics(plots2display)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## References
+
